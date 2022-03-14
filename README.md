@@ -4,12 +4,12 @@ The repository accommodates our work on churn models in the e-commerce environme
 
 # Structure
 `
-├─.dvc # data version control
-├─data # datasets
-    ├── raw
-        ├── olist # brazilian data
-        ├── rr # retail rocket         
-├─jupyters # jupyter notebooks
-├─src # python sources
+├─.dvc # data version control  
+├─data # datasets  
+    ├── raw  
+        ├── olist # brazilian data  
+        ├── rr # retail rocket           
+├─jupyters # jupyter notebooks  
+├─src # python sources  
 
 `
