@@ -1,5 +1,2 @@
 ['remote "origin"']
-    url = https://dagshub.com/fridrichmrtn/churn-modeling
-    auth = basic
-    user = fridrichmrtn
-    ask_password = true
+    url = https://dagshub.com/fridrichmrtn/churn-modeling.dvc
