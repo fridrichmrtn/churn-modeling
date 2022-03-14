@@ -3,7 +3,7 @@
 The repository accommodates our work on churn models in the e-commerce environment regarding economic aspects and interpretability.
 
 # Structure
-`
+```
 ├─.dvc # data version control  
 ├─data # datasets  
     ├── raw  
@@ -12,4 +12,4 @@ The repository accommodates our work on churn models in the e-commerce environme
 ├─jupyters # jupyter notebooks  
 ├─src # python sources  
 
-`
+```
