@@ -1,0 +1,16 @@
+#
+wheel
+
+# service
+dvc
+
+# data
+kaggle
+
+# dsc
+jupyter
+numpy
+pandas
+matplotlib
+seaborn
+sklearn
