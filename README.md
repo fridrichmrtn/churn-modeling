@@ -7,8 +7,7 @@ The repository accommodates our work on churn models in the e-commerce environme
 ├─.dvc # data version control  
 ├─data # datasets  
     ├── raw  
-        ├── olist # brazilian data  
-        ├── rr # retail rocket           
+        ├── rees46 # customer data platform collection         
 ├─jupyters # jupyter notebooks  
 ├─src # python sources  
 

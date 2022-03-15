@@ -12,4 +12,5 @@ pandas
 matplotlib
 seaborn
 sklearn
+findspark
 pyspark
