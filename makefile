@@ -17,9 +17,4 @@ env:
 
 # Download raw data
 datasets:
-	### Acquiring Olist dataset...
-	kaggle datasets download olistbr/brazilian-ecommerce -p data/raw/olist --unzip
-	### Done!
-	### Acquiring Retail Rocket dataset...
-	kaggle datasets download retailrocket/ecommerce-dataset -p data/raw/rr --unzip
-	### Done!
+	# meh
