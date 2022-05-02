@@ -42,7 +42,7 @@ events = events.withColumn("event_time", f.to_timestamp(f.col("event_time")))\
     .withColumn("category_id", f.col("category_id"))\
     .withColumn("price", f.col("price").cast("double"))\
     .withColumn("user_id", f.col("user_id").cast("integer"))
-events = events.cache()
+#events = events.persist()
 events.printSchema()
 events.show(3) #instantiate
 
@@ -59,12 +59,8 @@ col_to_map = ["event_type", "product_id", "category_id", "user_id", "user_sessio
 for c in col_to_map:
     events = add_ind(events, c)
 events = events.na.drop(subset=["user_session"]) # remove 21 rows    
-events = events.cache()    
+#events = events.persist()    
 events.show(3)    
-
-# COMMAND ----------
-
-target_files
 
 # COMMAND ----------
 
@@ -76,8 +72,7 @@ events = events.select("event_time", "event_type", "category_code", "brand", "pr
     .withColumnRenamed("new_category_id", "category_id")\
     .withColumnRenamed("new_user_id", "user_id")\
     .withColumnRenamed("new_user_session", "user_session_id")
-events = events.cache()    
-events.show(3)  
+#events.show(3)  
 
 # COMMAND ----------
 
@@ -99,5 +94,5 @@ def save_tables(df, location):
 DATA_OUT = "dbfs:/mnt/rees46/raw/concatenated/"
 events.write.parquet(DATA_OUT+"_", mode="overwrite")
 save_tables(events, DATA_OUT+"full/")
-save_tables(events.sample(fraction=.1, seed=202205), DATA_OUT+"sample/") 
+save_tables(events.sample(fraction=.05, seed=202205), DATA_OUT+"sample/") 
     
