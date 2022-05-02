@@ -30,7 +30,7 @@ for tf in target_files:
     if "events" not in locals():
         events = spark.read.csv(tf.path, header=True)
     else:
-        events.union(spark.read.csv(tf.path, header=True))
+        events = events.union(spark.read.csv(tf.path, header=True))
 events.printSchema()        
 
 # COMMAND ----------
@@ -61,6 +61,10 @@ for c in col_to_map:
 events = events.na.drop(subset=["user_session"]) # remove 21 rows    
 events = events.cache()    
 events.show(3)    
+
+# COMMAND ----------
+
+target_files
 
 # COMMAND ----------
 
@@ -95,5 +99,5 @@ def save_tables(df, location):
 DATA_OUT = "dbfs:/mnt/rees46/raw/concatenated/"
 events.write.parquet(DATA_OUT+"_", mode="overwrite")
 save_tables(events, DATA_OUT+"full/")
-save_tables(events.sample(fraction=.05, seed=202205), DATA_OUT+"sample/") 
+save_tables(events.sample(fraction=.1, seed=202205), DATA_OUT+"sample/") 
     
