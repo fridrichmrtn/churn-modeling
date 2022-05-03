@@ -15,7 +15,7 @@
 import pyspark.sql.functions as f
 
 # load raw data
-DATA_IN = "dbfs:/mnt/rees46/raw/concatenated/full/"
+DATA_IN = "dbfs:/mnt/rees46/raw/concatenated/sample/"
 categories = spark.read.parquet(DATA_IN+"categories")
 event_types = spark.read.parquet(DATA_IN+"event_types")
 events = spark.read.parquet(DATA_IN+"events")
@@ -29,7 +29,7 @@ events = events.join(event_types, on="event_type_id", how="inner")\
     .withColumn("cart", (f.col("event_type_name")=="cart").cast("int"))\
     .withColumn("purchase", (f.col("event_type_name")=="purchase").cast("int"))\
     .withColumn("revenue", f.col("purchase")*f.col("price"))
-events = events.cache()
+events = events.persist()
 
 # COMMAND ----------
 
@@ -42,8 +42,13 @@ sessions = events.groupBy("user_session_id") \
     .withColumn("is_purchase", (f.col("revenue")>0).cast("int"))\
     .withColumn("is_abadoned", ((f.col("is_purchase")==0) & (f.col("cart_count")>0)).cast("int"))\
     .withColumn("duration", ((f.col("session_end").cast("long")-f.col("session_start").cast("long"))/60).cast("double"))
-sessions = sessions.cache()
+#sessions = sessions.persist()
 sessions.show(3)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Sessions, purchases, and trends
 
 # COMMAND ----------
 
@@ -61,6 +66,11 @@ session_plots = sessions.groupBy(f.to_date(sessions.session_start).alias("sessio
     .withColumn("tocart_conversion", (f.col("abadoned_count")+f.col("purchase_count"))/f.col("session_count"))\
     .withColumn("purchase_conversion", f.col("purchase_count")/f.col("session_count")).toPandas()
 session_plots.head()
+
+# COMMAND ----------
+
+# general info
+display(session_plots)
 
 # COMMAND ----------
 
@@ -114,6 +124,11 @@ del melted, session_plots;
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### Users
+
+# COMMAND ----------
+
 ## users
         ## no of active users, no of transact users, propensity to buy
         ## intersession time, no of sessions, browsed revenue
@@ -126,6 +141,11 @@ user_plots = sessions.groupBy(grpr).agg(f.countDistinct("user_id").alias("user_c
     on="session_start", how="left")\
     .withColumn("propensity", f.col("user_purchase_count")/f.col("user_count")).toPandas()
 user_plots.head()
+
+# COMMAND ----------
+
+# general info
+display(user_plots)
 
 # COMMAND ----------
 
@@ -156,54 +176,100 @@ w = Window.partitionBy("user_id").orderBy("session_start")
 sessions = sessions.withColumn("inter_session_days",
     (f.col("session_start").cast("long")-f.lag("session_start",1).over(w).cast("long"))/(24*3600))
 # inter purchase
-sessions = sessions.join(sessions.where(f.col("purchase_count")>0).withColumn("inter_purchase_days",
+sessions = sessions.join(sessions.where(f.col("is_purchase")==1).withColumn("inter_purchase_days",
         (f.col("session_start").cast("long")-f.lag("session_start",1).over(w).cast("long"))/(24*3600))\
             .select("user_session_id", "inter_purchase_days"),
     on="user_session_id", how="left")
 
 # COMMAND ----------
 
+# just push it into pandas
+user_plots = sessions.groupby("user_id").agg(
+    f.mean(f.col("inter_session_days")).alias("inter_session_days"),
+    f.mean(f.col("inter_purchase_days")).alias("inter_purchase_days"),
+    f.countDistinct(f.col("user_session_id")).alias("session_count"),
+    f.sum(f.col("is_purchase")).alias("purchase_count"),
+    f.sum("revenue").alias("purchase_revenue")).toPandas()
+
+# inter session/purchase time
 fig, ax = plt.subplots(1,2,figsize=(18,6))
-(sessions[["inter_session_days"]].toPandas()).\
-    plot(kind="hist", logy=True, ax=ax[0]);
+(user_plots[["inter_session_days"]]).\
+    plot(kind="hist", ax=ax[0]);
 ax[0].set_xlabel("days");
 ax[0].set_title("inter session time");
 
-(sessions[["inter_purchase_days"]].toPandas()).\
-    plot(kind="hist", logy=True, ax=ax[1]);
+(user_plots[["inter_purchase_days"]]).\
+    plot(kind="hist", ax=ax[1]);
 ax[1].set_xlabel("days");
 ax[1].set_title("inter purchase time");
 
-# COMMAND ----------
+# frequency
+fig, ax = plt.subplots(1,2,figsize=(18,6))
+(user_plots[["session_count"]]).\
+    plot(kind="hist", logy=True, ax=ax[0]);
+ax[0].set_xlabel("count");
+ax[0].set_title("session frequency");
 
-# frequency sessions and transactions
+(user_plots[["purchase_count"]]).\
+    plot(kind="hist", logy=True, ax=ax[1]);
+ax[1].set_xlabel("count");
+ax[1].set_title("purchase frequency");
 
-# monetary sessions and transaction
+# monetary
+fig, ax = plt.subplots(1,1,figsize=(9,6))
+(user_plots[["purchase_revenue"]]).\
+    plot(kind="hist", logy=True, ax=ax);
+ax.set_xlabel("revenue");
+ax.set_title("purchase monetary");
 
-# COMMAND ----------
-
-# fokin target!
-
-# COMMAND ----------
-
-sessions.session_start.min()
-
-# COMMAND ----------
-
-sessions.describe().show()
-
-# COMMAND ----------
-
-sessions.agg({"session_start":"max"}).show()
-
-# COMMAND ----------
-
-events.show()
+# consider additional viz wrt RFM
+del user_plots;
 
 # COMMAND ----------
 
-events.agg({"event_time":"max"}).show()
+events.show(15)
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### Categories and products
 
+# COMMAND ----------
+
+events.groupby("product")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Target
+
+# COMMAND ----------
+
+# date components
+sessions = sessions.withColumn("month", f.month(f.col("session_start")))\
+    .withColumn("year", f.year(f.col("session_start")))
+# construct target
+w = Window.partitionBy("user_id").orderBy("year", "month")
+target = sessions[["year","month"]].distinct().crossJoin(sessions[["user_id"]].distinct())\
+    .join(sessions.groupBy("year", "month", "user_id").agg(f.sum(f.col("revenue")).alias("revenue")),
+        on=["year", "month", "user_id"], how="left").fillna(0, subset=["revenue"])\
+    .withColumn("revenue_lag", f.lag("revenue",1).over(w)).fillna(0, subset=["revenue_lag"])\
+    .withColumn("date", f.expr("make_date(year, month, 1)"))\
+    .withColumn("target", f.col("revenue")-f.col("revenue_lag"))
+target_plots = target.join(target.where(f.col("revenue")>0).select("user_id").distinct(), #usrs tran>0
+    on="user_id", how="inner").toPandas()
+target_plots.head()
+
+# COMMAND ----------
+
+display(target_plots.groupby("date", as_index=False).agg(
+    revenue_avg=("revenue", "mean"), target_avg=("target","mean")))
+
+# COMMAND ----------
+
+# first order revenue difference
+fig, ax = plt.subplots(1,1,figsize=(9,6))
+(target_plots[["target"]]).\
+    plot(kind="hist", logy=True, ax=ax);
+ax.set_xlabel("revenue diff");
+ax.set_title("target");
