@@ -1,17 +1,4 @@
 # Databricks notebook source
-# MAGIC %md
-# MAGIC 
-# MAGIC Working plan
-# MAGIC * load sample data
-# MAGIC * implement the existing workflow in spark
-# MAGIC * add target exploration and decide on the time-window
-# MAGIC 
-# MAGIC Next steps
-# MAGIC * propose a churn model based on previous publication
-# MAGIC * implement the churn model
-
-# COMMAND ----------
-
 import pyspark.sql.functions as f
 
 # load raw data
@@ -227,21 +214,53 @@ del user_plots;
 
 # COMMAND ----------
 
-events.show(15)
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC ### Categories and products
+# MAGIC 
+# MAGIC plot cat tree
+# MAGIC plot top 20 cats in click, purchases, conversion
+# MAGIC plot top 20 products in click, purchases, conversion
 
 # COMMAND ----------
 
-events.groupby("product")
+product_plots = events.groupBy("product_id", "category_id", "category_code", "brand").agg(f.count(f.col("event_time")).alias("visit_count"),
+    f.sum(f.col("purchase")).alias("purchase_count")).toPandas()
+product_plots.head()
+
+# COMMAND ----------
+
+def pps(df, clmn, nm):
+    temp = df.groupby([clmn], as_index=False)\
+        .agg(visit_count=("visit_count", "sum"), purchase_count=("purchase_count", "sum"))
+    temp["conversion"] = temp.purchase_count/temp.visit_count
+    
+    fig, ax = plt.subplots(1,3,figsize=(20,4))
+    temp.sort_values("visit_count").tail(20)\
+        .plot(x=clmn,y="visit_count",kind="barh", ax=ax[0]);
+    ax[0].set_xlabel("no of visits");
+    ax[0].set_title("top visited "+nm);
+    ax[0].get_legend().remove();
+
+    temp.sort_values("purchase_count").tail(20)\
+        .plot(x=clmn,y="purchase_count",kind="barh", ax=ax[1]);
+    ax[1].set_xlabel("sales");
+    ax[1].set_title("top sold "+nm);
+    ax[1].get_legend().remove();
+
+    temp.sort_values("conversion").tail(20)\
+        .plot(x=clmn,y="conversion",kind="barh", ax=ax[2]);
+    ax[2].set_xlabel("conversion rate");
+    ax[2].set_title("top conversion "+nm);
+    ax[2].get_legend().remove();
+    
+pps(product_plots,"product_id","products")
+pps(product_plots,"brand","brands")
+del product_plots;
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Target
+# MAGIC ### Possible target
 
 # COMMAND ----------
 
