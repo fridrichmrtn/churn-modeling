@@ -234,7 +234,7 @@ def pps(df, clmn, nm):
         .agg(visit_count=("visit_count", "sum"), purchase_count=("purchase_count", "sum"))
     temp["conversion"] = temp.purchase_count/temp.visit_count
     
-    fig, ax = plt.subplots(1,3,figsize=(20,4))
+    fig, ax = plt.subplots(1,3,figsize=(22,4))
     temp.sort_values("visit_count").tail(20)\
         .plot(x=clmn,y="visit_count",kind="barh", ax=ax[0]);
     ax[0].set_xlabel("no of visits");
@@ -281,14 +281,19 @@ target_plots.head()
 
 # COMMAND ----------
 
-display(target_plots.groupby("date", as_index=False).agg(
-    revenue_avg=("revenue", "mean"), target_avg=("target","mean")))
-
-# COMMAND ----------
-
 # first order revenue difference
-fig, ax = plt.subplots(1,1,figsize=(9,6))
-(target_plots[["target"]]).\
-    plot(kind="hist", logy=True, ax=ax);
-ax.set_xlabel("revenue diff");
-ax.set_title("target");
+fig, ax = plt.subplots(1,2,figsize=(18,6));
+
+target_plots.groupby("user_id")\
+    .agg(revenue=("revenue","sum"))\
+    .plot(kind="hist", logy=True, ax=ax[0])
+ax[0].set_xlabel("revenue");
+ax[0].set_title("total revenue");
+ax[0].get_legend().remove();
+
+target_plots[["target"]].plot(kind="hist", logy=True, ax=ax[1]);
+ax[1].set_xlabel("revenue diff");
+ax[1].set_title("inter month revenue difference");
+ax[1].get_legend().remove();
+
+# total CLR
