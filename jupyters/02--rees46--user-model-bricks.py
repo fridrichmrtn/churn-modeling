@@ -40,6 +40,10 @@ sessions = events.groupBy("user_session_id", "user_id").agg(
         f.min("event_time").alias("start"), f.max("event_time").alias("end"),
         ((f.max("event_time")-f.min("event_time")).cast("long")/60).alias("length"),
         # date-time components
+        # try 
+    
+        #
+        f.make_date(f.year(f.min("event_time")),f.month(f.min("event_time")),f.lit(1)).alias("start_monthgroup"),
         f.year(f.min("event_time")).alias("start_year"), f.dayofyear(f.min("event_time")).alias("start_yearday"), 
         f.month(f.min("event_time")).alias("start_month"), f.dayofmonth(f.min("event_time")).alias("start_monthday"),
         f.weekofyear(f.min("event_time")).alias("start_week"), f.dayofweek(f.min("event_time")).alias("start_weekday"),
@@ -83,8 +87,34 @@ purchases = sessions.where(f.col("haspurchase")==1)\
     .withColumn("purchase_recency", ((last_session_start-f.col("start")).cast("long")/(3600*24)))\
     .select("user_session_id", "purchase_number", "inter_purchase_time", "purchase_recency")
 
-sessions = sessions.join(purchases,sessions.user_session_id==purchases.user_session_id, "left")
+sessions = sessions.join(purchases,["user_session_id"], "left")
 sessions.printSchema()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### WHAT TO DO TOMORROW
+# MAGIC * expand the cols
+# MAGIC * add handcrafted interactions
+# MAGIC * add grouping, incl full lhs
+# MAGIC * add lags for revenue, sessions, transactions, consider smoothing
+# MAGIC 
+# MAGIC ### WHAT TO DO THE DAY AFTER TOMORROW
+# MAGIC * pick preference representation
+# MAGIC * construct preference vec for each user
+# MAGIC 
+# MAGIC ### NEXT?
+# MAGIC * TARGET VECTORS
+# MAGIC * GENERAL FILTERS
+# MAGIC * ML PIPE
+
+# COMMAND ----------
+
+# test the aggs
+cols = ["time_to_view_revenue", "time_to_view", "view_count"]
+agg_funcs = [f.mean, f.sum, f.min, f.max, f.stddev_samp]
+agg_exp = [f(c).alias(c+"_"+str(f.__name__).split("_")[0])for f in agg_funcs for c in cols]
+sessions.groupBy("user_id").agg(*agg_exp).show()
 
 # COMMAND ----------
 
@@ -100,7 +130,7 @@ wr = Window().partitionBy("user_id").orderBy("session_number")
 
 sessions.groupBy("user_id").agg(
     # recency
-    #(f.min("session_recency")).alias("session_recency"),
+    (f.min("session_recency")).alias("session_recency"),
     f.mean("inter_session_time").alias("session_recency_avg"),
     f.stddev_samp("inter_session_time").alias("session_recency_sd"),
     (f.stddev_samp("inter_session_time")/f.mean("inter_session_time")).alias("session_recency_cv"),
