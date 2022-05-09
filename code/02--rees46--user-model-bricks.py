@@ -157,28 +157,53 @@ del user_month_groups, user_month_lags
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### WHAT TO DO TOMORROW
-# MAGIC * expand the cols - DONE
-# MAGIC * add handcrafted interactions - DONE
-# MAGIC * add lags for revenue, sessions, transactions, consider smoothing + lhs for grouping - DONE
-# MAGIC 
-# MAGIC ### WHAT TO DO THE DAY AFTER TOMORROW
-# MAGIC * pick preference representation
-# MAGIC * construct preference vec for each user
-# MAGIC 
-# MAGIC ### NEXT?
-# MAGIC * TARGET VECTORS
-# MAGIC * GENERAL FILTERS
-# MAGIC * ML PIPE
+# MAGIC ### Construct preferences
 
 # COMMAND ----------
 
-last_session_date
+from pyspark.ml.evaluation import RegressionEvaluator
+from pyspark.ml.recommendation import ALS
+rs = 202205
+# transactions
+transactions = events.where(f.col("event_type_name")=="purchase").groupBy("user_id", "product_id")\
+    .agg(f.count(f.col("user_session_id")).alias("implicit_feedback"))
+(training, test) = transactions.randomSplit([0.6, 0.4], seed=rs)
+
+als = ALS(userCol="user_id", itemCol="product_id", ratingCol="implicit_feedback", seed=rs,
+          rank=5, maxIter=25, alpha=40, regParam=0.1, implicitPrefs=True, coldStartStrategy="drop")
+
+model = als.fit(training)
+predictions = model.transform(test)
+evaluator = RegressionEvaluator(metricName="rmse", labelCol="implicit_feedback", predictionCol="prediction")
+rmse = evaluator.evaluate(predictions)
+print("Root-mean-square error = " + str(rmse))
+
+
+# COMMAND ----------
+
+len(model.userFactors.select("features").toPandas().iloc[0,:].values[0])
+
+# COMMAND ----------
+
+from pyspark.sql.types import FloatType
+dims = als.getRank()
+fact_names = ["implicit_preference_f"+str(d) for d in range(dims)]
+splits = [f.udf(lambda val:val[d], FloatType()) for d in range(dims)]
+model.userFactors.select(f.col("id").alias("user_id"),*[s('features').alias(j) for s,j in zip(splits,fact_names)]).show()
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Construct preferences
+# MAGIC ### WHAT TO DO TOMORROW
+# MAGIC * pick preference representation - DONE
+# MAGIC * construct preference vec for each user - DONE
+# MAGIC * add hyperparameter tuning
+# MAGIC * add vizualizations - user and item maps + centroids and interpretations - START
+# MAGIC 
+# MAGIC ### WHAT TO DO THE DAY AFTER TOMORROW
+# MAGIC * TARGET VECTORS
+# MAGIC * GENERAL FILTERS
+# MAGIC * ML PIPE
 
 # COMMAND ----------
 
