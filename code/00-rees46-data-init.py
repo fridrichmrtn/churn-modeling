@@ -125,4 +125,4 @@ save_tables(events.sample(fraction=.01, seed=202205), DATA_OUT+"sample/")
 
 # COMMAND ----------
 
-
+# consider registering to 
