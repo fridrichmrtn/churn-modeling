@@ -39,6 +39,7 @@ def rees46_fix(events):
         .withColumn("purchase", (f.col("event_type_name")=="purchase").cast("int"))
         .withColumn("revenue", f.col("purchase")*f.col("price")))
     return events
+
 # FILTER USERS    
 def rees46_filter(events):
     import pyspark.sql.functions as f
