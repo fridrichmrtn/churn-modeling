@@ -99,9 +99,11 @@ def train_reco_model(data, params, seed):
 
 # COMMAND ----------
 
+# IMPLEMENT CROSSVALIDATION
 # define hyperopt space and funcs, run hyperopt
 (training_data, validation_data) = transactions.randomSplit([0.6, 0.4], seed=RECO_SEED)
 def train_reco_hyperopt(params):
+    
     # NOTE : consider distributing the data for large training scenario
         # train
     with mlflow.start_run(run_name="hyperopt_reco"):

@@ -1,8 +1,10 @@
 # Databricks notebook source
-dbutils.widgets.text("branch", "all")
+### NOTE: ADD DOCSTRINGS
+
 #
 ##
 ### REES46
+
 def rees46_load(dataInPath):
     import pyspark.sql.functions as f
     from pyspark.sql.types import StructType, IntegerType, DoubleType, TimestampType, StringType
@@ -24,7 +26,8 @@ def rees46_load(dataInPath):
             events = spark.read.csv(tf.path, schema=events_schema, header=True)
         else:
             events = events.union(spark.read.csv(tf.path, schema=events_schema, header=True))
-    return events.repartition(200)    
+    return events.repartition(200)
+
 # FIX TIMESTAMP, STANDARDIZE AND RENAME COLUMNS, POSSIBLY ADD ID-REMAPP
 def rees46_fix(events):
     import pyspark.sql.functions as f
@@ -49,6 +52,7 @@ def rees46_filter(events):
          .where(f.col("purchase_count")>=10)
          .select("user_id"))
     return events.join(user_filter, on=["user_id"], how="inner")
+
 # PUTTING EVERYTHING TOGETHER
 def rees46_get_events(dataInPath):
     # load, fix, and filter
@@ -56,6 +60,7 @@ def rees46_get_events(dataInPath):
     events = rees46_fix(events)
     events = rees46_filter(events)
     return events
+
 #
 ##
 ### LOADING RETAIL ROCKET
@@ -69,10 +74,11 @@ def rees46_get_events(dataInPath):
 #
 ##
 ### SAVE AS DELTA
+
 def save_events(events, dataOutPath):
     # do the repartitioning
     (events
-         .write.format("delta").partitionBy("user_id")
+         .write.format("delta")#.partitionBy("user_id")
          .mode("overwrite").option("overwriteSchema", "true")
          .save(dataOutPath))
 
@@ -81,25 +87,16 @@ def save_events(events, dataOutPath):
 #
 ##
 ### DEFINE PARAMS
+dbutils.widgets.text("branch", "rees46")
+branch = dbutils.widgets.get("branch")
 params = {"rees46":{"func":rees46_get_events, "dataInPath":"dbfs:/mnt/rees46/raw", "dataOutPath":"dbfs:/mnt/rees46/delta/events"}}
 
-#
-##
-### LITTLE HELPER
-def data_acquisition(params):
+### WRAPPER
+def data_preprocess(params):
     get_events = params["func"]
     events = get_events(params["dataInPath"])
     save_events(events, params["dataOutPath"])
 #
 ##
 ### WORKHORSE HERE
-branch = dbutils.widgets.get("branch")
-if branch=="all":
-    for k,v in params.items():
-        data_acquisition(v)
-else:
-    data_acquisition(params[branch])
-
-# COMMAND ----------
-
-
+data_preprocess(params[branch])
