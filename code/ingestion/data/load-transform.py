@@ -5,7 +5,7 @@
 ##
 ### REES46
 
-def rees46_load(dataInPath):
+def _rees46_load(dataInPath):
     import pyspark.sql.functions as f
     from pyspark.sql.types import StructType, IntegerType, DoubleType, TimestampType, StringType
     # load raw data
@@ -29,7 +29,7 @@ def rees46_load(dataInPath):
     return events.repartition(200)
 
 # FIX TIMESTAMP, STANDARDIZE AND RENAME COLUMNS, POSSIBLY ADD ID-REMAPP
-def rees46_fix(events):
+def _rees46_fix(events):
     import pyspark.sql.functions as f
     # timestamp and names
     events = (events
@@ -44,7 +44,7 @@ def rees46_fix(events):
     return events
 
 # FILTER USERS    
-def rees46_filter(events):
+def _rees46_filter(events):
     import pyspark.sql.functions as f
     user_filter = (events.where(f.col("event_type_name")=="purchase")
          .groupBy("user_id")
@@ -54,12 +54,15 @@ def rees46_filter(events):
     return events.join(user_filter, on=["user_id"], how="inner")
 
 # PUTTING EVERYTHING TOGETHER
-def rees46_get_events(dataInPath):
+def rees46_load_transform(dataInPath):
     # load, fix, and filter
-    events = rees46_load(dataInPath)
-    events = rees46_fix(events)
-    events = rees46_filter(events)
+    events = _rees46_load(dataInPath)
+    events = _rees46_fix(events)
+    events = _rees46_filter(events)
     return events
+
+# COMMAND ----------
+
 
 #
 ##
@@ -70,10 +73,11 @@ def rees46_get_events(dataInPath):
 ##
 ### LOADING OLIST
 
+# COMMAND ----------
 
 #
 ##
-### SAVE AS DELTA
+### SAVE TO DELTA
 
 def save_events(events, dataOutPath):
     # do the repartitioning
@@ -81,22 +85,3 @@ def save_events(events, dataOutPath):
          .write.format("delta")#.partitionBy("user_id")
          .mode("overwrite").option("overwriteSchema", "true")
          .save(dataOutPath))
-
-# COMMAND ----------
-
-#
-##
-### DEFINE PARAMS
-dbutils.widgets.text("branch", "rees46")
-branch = dbutils.widgets.get("branch")
-params = {"rees46":{"func":rees46_get_events, "dataInPath":"dbfs:/mnt/rees46/raw", "dataOutPath":"dbfs:/mnt/rees46/delta/events"}}
-
-### WRAPPER
-def data_preprocess(params):
-    get_events = params["func"]
-    events = get_events(params["dataInPath"])
-    save_events(events, params["dataOutPath"])
-#
-##
-### WORKHORSE HERE
-data_preprocess(params[branch])

@@ -11,6 +11,7 @@
 
 def _set_recom(params, seed):
     from pyspark.ml.recommendation import ALS
+    
     # unpack params
     rank = int(params["rank"]) # int
     maxiter = int(params["maxIter"]) # int
@@ -27,6 +28,7 @@ def _eval_recom(params, data, event_type, run_name, seed):
     from pyspark.ml.evaluation import RegressionEvaluator
     from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
     from hyperopt import STATUS_OK
+    
     # data distri for larger datasets?
     with mlflow.start_run(run_name=run_name):
         mlflow.log_params(params)
@@ -46,10 +48,14 @@ def _eval_recom(params, data, event_type, run_name, seed):
 def optimize_recom(events, event_type, seed):
     from functools import partial
     from hyperopt import fmin, tpe, hp, Trials, space_eval
+    import mlflow
+    
     # form the dataset
     implicit_feedback = (events.groupBy("user_id", "product_id")
         .agg(f.count(f.col("user_session_id")).alias("implicit_feedback")))
+    
     # optimization
+    # NOTE: MOVE SPACE AND OPTPAR OUTSIDE THE FUNC
     space = {
         "rank": hp.randint("rank", 5, 30),
         "maxIter": hp.randint("maxIter", 5, 40),
@@ -60,7 +66,8 @@ def optimize_recom(events, event_type, seed):
         fn=partial(_eval_recom,
             data=implicit_feedback, event_type=event_type,
             run_name=run_name, seed=seed),
-        max_evals=25, space=space, algo=tpe.suggest)
+        max_evals=1, space=space, algo=tpe.suggest)
+    
     # refit
     run_name = "refit_recom_"+event_type
     with mlflow.start_run(run_name=run_name):
@@ -73,16 +80,17 @@ def optimize_recom(events, event_type, seed):
         mlflow.register_model(path, run_name)
         print(f"Optimized recommendation engine stored in \"{path}\".")
         return optimized_model
+      
 #
 ##
 ### GET ENCODED PREFERENCE
 
-def get_user_factors(recom_model):
+def get_user_factors(recom_model, event_type):
     import pyspark.sql.functions as f
     dims = range(recom_model.rank)
     user_factors = recom_model.userFactors\
         .select(f.col("id").alias("user_id"),
-            *[f.col("features").getItem(d).alias("latent_factor"+str(d)) for d in dims])
+            *[f.col("features").getItem(d).alias(event_type+"_latent_factor"+str(d)) for d in dims])
     return user_factors
 
 # COMMAND ----------

@@ -8,12 +8,14 @@
 def _coef_variation(colname):
     # coeficient of variation
     import pyspark.sql.functions as f
+    
     return (f.mean(colname)/f.stddev_samp(colname))
 
 def _add_lags(df, colnames, lags=[0,1,2,3], ma=3):
     # lagg features
     import pyspark.sql.functions as f
     from pyspark.sql.window import Window
+    
     uw = Window.partitionBy("user_id").orderBy("start_monthgroup")
     uwr = Window.partitionBy("user_id").orderBy(f.col("start_monthgroup")).rowsBetween(-ma,0)
     # lags
@@ -31,6 +33,7 @@ def _add_lags(df, colnames, lags=[0,1,2,3], ma=3):
 def _get_sessions(events):
     import pyspark.sql.functions as f
     from pyspark.sql.window import Window
+    
     # base sessions
     sessions = events.groupBy("user_session_id", "user_id").agg(    
         # time chars
@@ -38,11 +41,16 @@ def _get_sessions(events):
             f.min("event_time").alias("start"), f.max("event_time").alias("end"),
             ((f.max("event_time")-f.min("event_time")).cast("long")/60).alias("length"),
             # date-time components
-            f.make_date(f.year(f.min("event_time")),f.month(f.min("event_time")),f.lit(1)).alias("start_monthgroup"),
-            f.year(f.min("event_time")).alias("start_year"), f.dayofyear(f.min("event_time")).alias("start_yearday"), 
-            f.month(f.min("event_time")).alias("start_month"), f.dayofmonth(f.min("event_time")).alias("start_monthday"),
-            f.weekofyear(f.min("event_time")).alias("start_week"), f.dayofweek(f.min("event_time")).alias("start_weekday"),
-            (f.when(f.dayofweek(f.min("event_time"))==1,1).when(f.dayofweek(f.min("event_time"))==7,1).otherwise(0)).alias("start_isweekend"),
+            f.make_date(f.year(f.min("event_time")),
+            f.month(f.min("event_time")),f.lit(1)).alias("start_monthgroup"),
+            f.year(f.min("event_time")).alias("start_year"),
+            f.dayofyear(f.min("event_time")).alias("start_yearday"), 
+            f.month(f.min("event_time")).alias("start_month"),
+            f.dayofmonth(f.min("event_time")).alias("start_monthday"),
+            f.weekofyear(f.min("event_time")).alias("start_week"),
+            f.dayofweek(f.min("event_time")).alias("start_weekday"),
+            (f.when(f.dayofweek(f.min("event_time"))==1,1)\
+                .when(f.dayofweek(f.min("event_time"))==7,1).otherwise(0)).alias("start_isweekend"),
             f.hour(f.min("event_time")).alias("start_hour"),
         # events
             # clicks
@@ -50,19 +58,29 @@ def _get_sessions(events):
             f.count("user_id").alias("click_count"), f.sum("view").alias("view_count"), 
             f.sum("cart").alias("cart_count"), f.sum("purchase").alias("purchase_count"),    
             # time to action
-            ((f.max("event_time")-f.min("event_time")).cast("long")/(60*f.count("user_id"))).alias("time_to_click"),
-            ((f.max("event_time")-f.min("event_time")).cast("long")/(60*f.sum("view"))).alias("time_to_view"),
-            ((f.max("event_time")-f.min("event_time")).cast("long")/(60*f.sum("cart"))).alias("time_to_cart"),
-            ((f.max("event_time")-f.min("event_time")).cast("long")/(60*f.sum("purchase"))).alias("time_to_purchase"),    
+            ((f.max("event_time")-f.min("event_time")).cast("long")/\
+                (60*f.count("user_id"))).alias("time_to_click"),
+            ((f.max("event_time")-f.min("event_time")).cast("long")/\
+                (60*f.sum("view"))).alias("time_to_view"),
+            ((f.max("event_time")-f.min("event_time")).cast("long")/\
+                (60*f.sum("cart"))).alias("time_to_cart"),
+            ((f.max("event_time")-f.min("event_time")).cast("long")/\
+                (60*f.sum("purchase"))).alias("time_to_purchase"),    
         # revenue
             # sums
-            f.sum((f.col("view")*f.col("price"))).alias("view_revenue"), f.sum((f.col("cart")*f.col("price"))).alias("cart_revenue"),
+            f.sum((f.col("view")*f.col("price"))).alias("view_revenue"),
+            f.sum((f.col("cart")*f.col("price"))).alias("cart_revenue"),
             f.sum((f.col("purchase")*f.col("price"))).alias("purchase_revenue"),
             # time to revenue
-            ((f.max("event_time")-f.min("event_time")).cast("long")/(60*f.sum("price"))).alias("time_to_click_revenue"),
-            ((f.max("event_time")-f.min("event_time")).cast("long")/(60* f.sum((f.col("view")*f.col("price"))))).alias("time_to_view_revenue"),
-            ((f.max("event_time")-f.min("event_time")).cast("long")/(60* f.sum((f.col("cart")*f.col("price"))))).alias("time_to_cart_revenue"),
-            ((f.max("event_time")-f.min("event_time")).cast("long")/(60* f.sum((f.col("purchase")*f.col("price"))))).alias("time_to_purchase_revenue"))
+            ((f.max("event_time")-f.min("event_time")).cast("long")/\
+                (60*f.sum("price"))).alias("time_to_click_revenue"),
+            ((f.max("event_time")-f.min("event_time")).cast("long")/\
+                (60* f.sum((f.col("view")*f.col("price"))))).alias("time_to_view_revenue"),
+            ((f.max("event_time")-f.min("event_time")).cast("long")/\
+                (60* f.sum((f.col("cart")*f.col("price"))))).alias("time_to_cart_revenue"),
+            ((f.max("event_time")-f.min("event_time")).cast("long")/\
+                (60* f.sum((f.col("purchase")*f.col("price"))))).alias("time_to_purchase_revenue"))
+    
     # windowing
     ws = Window().partitionBy("user_id").orderBy("start")
     last_session_start = sessions.agg(f.max(f.col("start")).alias("lsd"))\
@@ -77,17 +95,19 @@ def _get_sessions(events):
         .withColumn("purchase_recency", ((last_session_start-f.col("start")).cast("long")/(3600*24)))\
         .select("user_session_id", "purchase_number", "inter_purchase_time", "purchase_recency")
     return sessions.join(purchases,["user_session_id"], "left")
+  
 #
 ##
 ### BASE FEATURES
 
 def get_base_features(events):
     import pyspark.sql.functions as f
+    
     sessions = _get_sessions(events)
     # statistics
     excl_cols = set(["user_session_id", "user_id", "start", "end", "start_monthgroup"])
     stat_cols = [c for c in sessions.columns if c not in excl_cols]
-    stat_funcs = [f.mean, f.sum, f.min, f.max, f.stddev_samp, coef_variation] # extend?
+    stat_funcs = [f.mean, f.sum, f.min, f.max, f.stddev_samp, _coef_variation] # extend?
     stat_exp = [f(c).alias(c+"_"+str(f.__name__).split("_")[0])for f in stat_funcs for c in stat_cols]
     # hand-crafted interactions, possibly extend
     int_exp = [(f.max("session_number")/f.max("session_recency")).alias("session_count_daily_ratio"),
