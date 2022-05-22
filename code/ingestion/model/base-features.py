@@ -5,7 +5,7 @@
 ##
 ### HELPERS
 
-def _coef_variation(colname):
+def _variation(colname):
     # coeficient of variation
     import pyspark.sql.functions as f
     
@@ -101,14 +101,17 @@ def _get_sessions(events):
 ### BASE FEATURES
 
 def get_base_features(events):
+    from functools import partial
     import pyspark.sql.functions as f
     
     sessions = _get_sessions(events)
     # statistics
     excl_cols = set(["user_session_id", "user_id", "start", "end", "start_monthgroup"])
     stat_cols = [c for c in sessions.columns if c not in excl_cols]
-    stat_funcs = [f.mean, f.sum, f.min, f.max, f.stddev_samp, _coef_variation] # extend?
-    stat_exp = [f(c).alias(c+"_"+str(f.__name__).split("_")[0])for f in stat_funcs for c in stat_cols]
+    stat_funcs = [f.mean, f.sum, f.min, f.max, f.stddev_samp, _variation] # extend?
+    stat_exp = [f(c).alias(c+"_"+list(filter(None,str(f.__name__).split("_")))[0])
+                
+        for f in stat_funcs for c in stat_cols]
     # hand-crafted interactions, possibly extend
     int_exp = [(f.max("session_number")/f.max("session_recency")).alias("session_count_daily_ratio"),
         (f.sum("click_count")/f.max("session_number")).alias("click_count_ratio"),
@@ -129,6 +132,7 @@ def get_base_features(events):
     last_monthgroup = user_month_lags.agg(f.max("start_monthgroup").alias("smg"))\
         .collect()[0].__getitem__("smg")
     lag_cols = [c for c in user_month_lags.columns if ("_ma" in c) or ("_lag" in c) or ("user_id" in c)]
-    user_month_lags = user_month_lags.where(f.col("start_monthgroup")==last_monthgroup).select(*lag_cols)
+    user_month_lags = (user_month_lags.where(f.col("start_monthgroup")==last_monthgroup)
+                           .select(*lag_cols))#.fillna(0)
     # push it out
     return base_features.join(user_month_lags, on=["user_id"], how="inner")

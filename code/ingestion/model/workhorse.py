@@ -26,14 +26,13 @@ def get_target(events, split_time):
 
 def get_feature_events(events, split_time):
     import pyspark.sql.functions as f
-    
     return events.where(f.col("event_time")<=split_time)
   
 #
 ##
 ### USER MODEL
 
-def get_user_model(events, split_time, seed=42):
+def construct_user_model(events, split_time, seed=42):
     import pyspark.sql.functions as f
     import mlflow
     
@@ -55,4 +54,40 @@ def get_user_model(events, split_time, seed=42):
     
     # MEH
     return (user_base.join(user_transaction_preference, on=["user_id"])
-        .join(user_interaction_preference, on=["user_id"]).join(user_target, on=["user_id"]))    
+        .join(user_interaction_preference, on=["user_id"]).join(user_target, on=["user_id"]))
+    
+#
+##
+### SPLIT AND SAVE
+
+def remove_user_model(dataset_name):
+    data_path = f"dbfs:/mnt/{dataset_name}/delta/"
+    dbutils.fs.rm(data_path+"user_model", true)
+    
+def load_user_model(dataset_name):
+    data_path = f"dbfs:/mnt/{dataset_name}/delta/"
+    
+    
+def split_save_user_model(dataset_name, week_steps=5, overwrite=True)
+    # construct temp user models
+    import pandas as pd
+    import pyspark.sql.functions as f
+    from dateutil.relativedelta import relativedelta
+    data_path = f"dbfs:/mnt/{dataset_name}/delta/"
+    
+    events = spark.read.format("delta").load(data_path+"events").sample(fraction=.001)
+    max_date = events.agg(f.to_date(f.max(f.col("event_time"))).alias("mdt"))\
+        .collect()[0]["mdt"]
+    # do the time steps
+    if overwrite:
+        remove_user_model(dataset_name)
+    # split and construct       
+    for delta in range(week_steps):
+        # add some logs/prints
+        temp_max_date = max_date+relativedelta(days=-(delta*7))
+        temp_split_date = temp_max_date+relativedelta(months=-1)
+        temp_user_model = construct_user_model(events.where(f.col("event_time")<=temp_max_date),
+            temp_split_date)
+        temp_user_model = temp_user_model.withColumn("delta_split", lit(delta))
+        temp_user_model.write.format("delta").mode("append").save(data_path+"user_model")
+
