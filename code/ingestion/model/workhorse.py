@@ -65,10 +65,9 @@ def remove_user_model(dataset_name):
     dbutils.fs.rm(data_path+"user_model", true)
     
 def load_user_model(dataset_name):
-    data_path = f"dbfs:/mnt/{dataset_name}/delta/"
+    data_path = f"dbfs:/mnt/{dataset_name}/delta/"  
     
-    
-def split_save_user_model(dataset_name, week_steps=5, overwrite=True)
+def split_save_user_model(dataset_name, week_steps=5, week_target=4, overwrite=True)
     # construct temp user models
     import pandas as pd
     import pyspark.sql.functions as f
@@ -82,10 +81,10 @@ def split_save_user_model(dataset_name, week_steps=5, overwrite=True)
     if overwrite:
         remove_user_model(dataset_name)
     # split and construct       
-    for delta in range(week_steps):
+    for wk in range(week_steps):
         # add some logs/prints
-        temp_max_date = max_date+relativedelta(days=-(delta*7))
-        temp_split_date = temp_max_date+relativedelta(months=-1)
+        temp_max_date = max_date+relativedelta(days=-(wk*7))
+        temp_split_date = temp_max_date+relativedelta(days=-(7*week_target))
         temp_user_model = construct_user_model(events.where(f.col("event_time")<=temp_max_date),
             temp_split_date)
         temp_user_model = temp_user_model.withColumn("delta_split", lit(delta))

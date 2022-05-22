@@ -1,27 +1,12 @@
 # Databricks notebook source
-# MAGIC %run "./model/utils"
+# MAGIC %run "./model/workhorse"
 
 # COMMAND ----------
 
-# TRY TO REGISTER DATASETS AS OUTPUT
-# HOW TO RUN ON MULTIPLE PARAMS
-# PARAMS - LOAD LOC, SPLIT, TARGET LOC (TABLE?)
-# RUN ON FULL REES46 DATA
+# TODO TODAY
 
-# COMMAND ----------
+# REFACTOR LAGGED FEATURES
+# RUN REFACTORED VERSION ON SAMPLE DATASET
 
-# data load
-
-dataset = "rees46"
- 
-
-        
-
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-
+# EXPLORATION CODE AND NTB
+# PIPELINE PROPOSITION
