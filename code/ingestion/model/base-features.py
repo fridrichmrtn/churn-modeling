@@ -41,8 +41,10 @@ def _get_sessions(events):
             f.min("event_time").alias("start"), f.max("event_time").alias("end"),
             ((f.max("event_time")-f.min("event_time")).cast("long")/60).alias("length"),
             # date-time components
-            f.make_date(f.year(f.min("event_time")),
-            f.month(f.min("event_time")),f.lit(1)).alias("start_monthgroup"),
+            #f.make_date(f.year(f.min("event_time")),
+            #  f.month(f.min("event_time")),f.lit(1)).alias("start_monthgroup"),
+            (f.next_day(f.min("event_time"), "Sun")-\
+                f.expr("INTERVAL 4 WEEKS")).alias("start_monthgroup"),
             f.year(f.min("event_time")).alias("start_year"),
             f.dayofyear(f.min("event_time")).alias("start_yearday"), 
             f.month(f.min("event_time")).alias("start_month"),
