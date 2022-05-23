@@ -74,7 +74,7 @@ def split_save_user_model(dataset_name, week_steps=5, week_target=4, overwrite=T
     from dateutil.relativedelta import relativedelta
     data_path = f"dbfs:/mnt/{dataset_name}/delta/"
     
-    events = spark.read.format("delta").load(data_path+"events").sample(fraction=.001)
+    events = spark.read.format("delta").load(data_path+"events")#.sample(fraction=.001)
     max_date = events.agg(f.to_date(f.max(f.col("event_time"))).alias("mdt"))\
         .collect()[0]["mdt"]
     # do the time steps
