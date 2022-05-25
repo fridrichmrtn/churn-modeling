@@ -1,5 +1,5 @@
 # Databricks notebook source
-# MAGIC %run "./data/workhorse"
+# MAGIC %run "./load-transform/workhorse"
 
 # COMMAND ----------
 
