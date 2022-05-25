@@ -1,5 +1,9 @@
 # Databricks notebook source
-# MAGIC %run "./user-model/workhorse"
+# MAGIC %run "./customer-model/workhorse"
+
+# COMMAND ----------
+
+ #spark.sql("CREATE SCHEMA IF NOT EXISTS churndb LOCATION \"dbfs:/mnt/churndb\"")
 
 # COMMAND ----------
 
@@ -7,16 +11,12 @@
 ##
 ### REES46
 
-split_save_user_model("rees46")
+split_save_customer_model("rees46")
 
 
 # COMMAND ----------
 
-# TODO TODAY
-
-# REFACTOR LAGGED FEATURES - DONE
-# SAMPLE FULL DATASET - DONE
-# RUN REFACTORED VERSION ON FULL DATASET
+# TODO
 
 # EXPLORATION
 # INDIVIDUAL FEATURE PROPERTIES
