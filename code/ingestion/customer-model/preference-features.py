@@ -3,6 +3,35 @@
 
 #
 ##
+### SETUP
+from hyperopt import hp
+
+setup_dict = {
+    "rees46":{
+        
+        # optimization conf
+        "hyperopt":{"space":{"rank": hp.randint("rank", 5, 50),
+                             "maxIter": hp.randint("maxIter", 5, 100),
+                             "regParam": hp.loguniform("regParam", -5, 3),
+                             "alpha": hp.uniform("alpha", 25, 350)},
+                    
+                    "max_evals":50,
+            
+                     # optimized runs
+                    "runs":{"purchase":"d7711ccc392e4c01844ffeca197660e0",
+                        "view":"db0941699fd94fb08b1c23d3350a3a2c"},
+                    # TBD
+                    "models":{"purchase":"a4b7daa633574c518aadb33855d61c1f",
+                         "view":"a1c9a2b68f0d4c848258d5c5a2c5ee60"}},
+        
+        # utils
+        #"reco_types":["purchase", "view"],
+        "seed":42,}}
+
+# COMMAND ----------
+
+#
+##
 ### PREFERENCE
 
 #
@@ -11,6 +40,7 @@
 
 def _get_exp_id(exp_path):
     import mlflow
+    
     try:
         exp_id = mlflow.get_experiment_by_name(exp_path).experiment_id
     except:
@@ -19,6 +49,7 @@ def _get_exp_id(exp_path):
 
 def _get_imp_feed(events):
     import pyspark.sql.functions as f
+    
     # form the dataset
     implicit_feedback = (events.groupBy("user_id", "product_id")
         .agg(f.count(f.col("user_session_id")).alias("implicit_feedback")))
@@ -48,11 +79,12 @@ def _eval_recom(params, implicit_feedback, seed):
     from pyspark.ml.tuning import TrainValidationSplit, ParamGridBuilder
     from hyperopt import STATUS_OK
     
+    # factor split ratio out?
+    train_data, val_data = implicit_feedback.randomSplit([.6,.4])
+    
     # setup
     with mlflow.start_run(nested=True) as run:
         mlflow.log_params(params)
-        
-        train_data, val_data = implicit_feedback.randomSplit([.6,.4])
         model = _set_recom(params, seed).fit(train_data)
         train_pred = model.transform(train_data)
         val_pred = model.transform(val_data)
@@ -65,21 +97,18 @@ def _eval_recom(params, implicit_feedback, seed):
         mlflow.log_metrics(metrics_dict)   
     return {"loss":metrics_dict["val_rmse"], "status":STATUS_OK}
 
-def _optimize_recom(events, event_type, seed):
-    from hyperopt import fmin, tpe, hp, Trials, space_eval
+def _optimize_recom(events, dataset_name, event_type, seed):
+    from hyperopt import fmin, tpe
     from functools import partial
     import mlflow
     
     # setup
-    space = {"rank": hp.randint("rank", 5, 50),
-        "maxIter": hp.randint("maxIter", 5, 100),
-        "regParam": hp.loguniform("regParam", -5, 3),
-        "alpha": hp.uniform("alpha", 25, 350)}
-    max_evals = 50
+    space = setup_dict[dataset_name]["hyperopt"]["space"]
+    max_evals = setup_dict[dataset_name]["hyperopt"]["max_evals"]
     implicit_feedback = _get_imp_feed(events)
     
     # optimization
-    exp_name = "optimize_recom_"+event_type
+    exp_name = f"{dataset_name}_optimize_recom_{event_type}"
     exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:    
@@ -93,54 +122,77 @@ def _optimize_recom(events, event_type, seed):
 ##
 ### REFIT
     
-def fit_optimized_recom(events, event_type,
-        load_run_id, seed):
+def _fit_optimized_recom(events, event_type, dataset_name, run_id=None):
     import mlflow
-  
-    implicit_feedback = _get_imp_feed(events)
     
-    # load reco params
-    # use tag and artifact load
-    run = mlflow.get_run(run_id=load_run_id)
-    optimized_params = run.data.params   
-    
-    # fit
-    exp_name = "refit_recom_"+event_type
+    if run_id is None:
+        run_id = setup_dict[dataset_name]["hyperopt"]["runs"][event_type]
+            
+    seed = setup_dict[dataset_name]["seed"]
+    run_params = mlflow.get_run(run_id=run_id).data.params   
+    exp_name = f"{dataset_name}_refit_recom_{event_type}"
     exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
+    
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:     
-        mlflow.log_params(optimized_params)
-        optimized_model = _set_recom(optimized_params,
-            seed=seed).fit(implicit_feedback)
-        mlflow.spark.log_model(optimized_model,
-            exp_name, registered_model_name=exp_name)
-        return optimized_model
+        mlflow.log_params(run_params)
+        imp_feed = _get_imp_feed(events)
+        model = _set_recom(run_params, seed=seed).fit(imp_feed)
+        mlflow.spark.log_model(model, exp_name, registered_model_name=exp_name)
+        return model
       
 #
 ##
-### GET ENCODED PREFERENCE
+### PREFERENCE FROM MODEL
 
-def get_user_factors(recom_model, event_type):
+def _get_user_factors(recom_model, event_type):
     import pyspark.sql.functions as f
+    
     dims = range(recom_model.rank)
-    user_factors = recom_model.userFactors\
+    user_factors = (recom_model.userFactors
         .select(f.col("id").alias("user_id"),
-            *[f.col("features").getItem(d).alias(event_type+"_latent_factor"+str(d)) for d in dims])
+            *[f.col("features").getItem(d).alias(event_type+"_latent_factor"+str(d))
+                for d in dims]))
     return user_factors
 
 #
 ##
-### MEH
+### GET PREFERENCE MODEL
 
-def _prerun_optimize_recom(dataset_name, seed):
+def get_pref_features(events, dataset_name, refit=True):
+    import pyspark.sql.functions as f
+    import mlflow
+    
+    dfs = []
+    if refit:
+        for k, v in  setup_dict[dataset_name]["hyperopt"]["runs"].items():
+            recom = _fit_optimized_recom(events.where(f.col("event_type_name")==k),
+                k, dataset_name, v)
+            dfs += [_get_user_factors(recom, k)]
+            
+    else:
+        for k, v in  setup_dict[dataset_name]["hyperopt"]["models"].items():
+            recom = mlflow.spark.load_model(f"models:/{dataset_name}_refit_recom_{k}/None")\
+                .stages[0]
+            dfs += [_get_user_factors(recom, k)]
+    
+    # crude solution for now
+    return dfs[0].join(dfs[1], on=["user_id"])
+
+#
+##
+### PRE-RUN THE OPTIMIZATION
+
+def _prerun_optimize_recom(dataset_name):
     import pyspark.sql.functions as f
     
-    data_path = f"dbfs:/mnt/{dataset_name}/delta/"  
-    events = spark.read.format("delta").load(data_path+"events")
+    seed = setup_dict[dataset_name]["seed"]
+    
+    events = spark.read.format("delta").load(f"dbfs:/mnt/{dataset_name}/delta/events")#.sample(fraction=.001)
     transactions = events.where(f.col("event_type_name")=="purchase")
-    _ = _optimize_recom(transactions, "transactions", seed)
+    _ = _optimize_recom(transactions, dataset_name, "transactions", seed)
     views = events.where(f.col("event_type_name")=="view")
-    _ = _optimize_recom(views, "views", seed)
+    _ = _optimize_recom(views, dataset_name, "views", seed)
 
 # COMMAND ----------
 
@@ -172,8 +224,21 @@ def _plot_hyperopt(parent_run_id, labels):
     fig.show()
 
 # test run
-from collections import OrderedDict
-parent_run_id = "016c545a89474ecf9747d6f06dc2affd"
-labels = OrderedDict([("params.alpha","alpha"), ("params.rank","rank"),
-    ("params.max_iter","iterations"), ("params.reg_param","regularization strength"),
-    ("metrics.train_rmse","training RMSE"), ("metrics.val_rmse","validation RMSE")])
+#from collections import OrderedDict
+#parent_run_id = "016c545a89474ecf9747d6f06dc2affd"
+#labels = OrderedDict([("params.alpha","alpha"), ("params.rank","rank"),
+#    ("params.max_iter","iterations"), ("params.reg_param","regularization strength"),
+#    ("metrics.train_rmse","training RMSE"), ("metrics.val_rmse","validation RMSE")])
+
+#_plot_hyperopt(parent_run_id, labels)
+
+# COMMAND ----------
+
+# test run
+#dataset_name = "rees46"
+#data_path = f"dbfs:/mnt/{dataset_name}/delta/"
+#events = spark.read.format("delta").load(data_path+"events").sample(fraction=.001)
+#test = get_pref_features(events, "rees46", refit=False)
+
+# test run
+_prerun_optimize_recom("rees46")

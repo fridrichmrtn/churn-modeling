@@ -110,9 +110,9 @@ def get_base_features(events):
     excl_cols = set(["user_session_id", "user_id", "start", "end", "start_monthgroup"])
     stat_cols = [c for c in sessions.columns if c not in excl_cols]
     stat_funcs = [f.mean, f.sum, f.min, f.max, f.stddev_samp, _variation] # extend?
-    stat_exp = [f(c).alias(c+"_"+list(filter(None,str(f.__name__).split("_")))[0])
-                
+    stat_exp = [f(c).alias(c+"_"+list(filter(None,str(f.__name__).split("_")))[0])                
         for f in stat_funcs for c in stat_cols]
+    
     # hand-crafted interactions, possibly extend
     int_exp = [(f.max("session_number")/f.max("session_recency")).alias("session_count_daily_ratio"),
         (f.sum("click_count")/f.max("session_number")).alias("click_count_ratio"),

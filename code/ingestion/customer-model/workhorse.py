@@ -30,47 +30,59 @@ def _get_feature_events(events, split_time):
   
 #
 ##
-### USER MODEL
+### CUSTOMER MODEL
 
-def _construct_customer_model(events, split_time, seed=42):
+def _impute_customer_model(customer_model):
+    import pyspark.sql.functions as f
+    import re
+    
+    # zero imputation
+    zero_cols = [c for c in customer_model.columns for fc in ["_lag[0-9]+$", "_ma[0-9]+$", "_stddev$"]\
+        if re.search(fc, c) is not None]
+    customer_model = customer_model.fillna(0, subset=zero_cols)
+
+    # max imputation
+    max_cols = [c for c in customer_model.columns for fc in ["^inter_", "^time_to_", "_variation$"]\
+        if re.search(fc, c) is not None]
+    max_expr = [f.max(c).alias(c) for c in max_cols]
+    max_vals = customer_model.agg(*max_expr).toPandas().transpose().to_dict()[0]
+    customer_model = customer_model.fillna(max_vals)
+    return customer_model
+
+def _construct_customer_model(dataset_name, events, split_time):
     import pyspark.sql.functions as f
     import mlflow
     
-    transaction_run_id = "d7711ccc392e4c01844ffeca197660e0"
-    view_run_id = "db0941699fd94fb08b1c23d3350a3a2c"
-    user_target = _get_target(events, split_time)
-    user_events = _get_feature_events(events, split_time).persist()    
+    cust_target = _get_target(events, split_time)
+    cust_events = _get_feature_events(events, split_time).persist()    
 
     # BASE MODEL
-    user_base = get_base_features(user_events)
+    cust_base = get_base_features(cust_events)
 
     # PREFERENCE MODELS
-    # NOTE: possibly to extend with model loads
-    user_transactions = user_events.where(f.col("event_type_name")=="purchase")
-    transaction_recommendation_model = fit_optimized_recom(user_transactions, "transactions", transaction_run_id, seed)
-    #transaction_recommendation_model =  mlflow.spark.load_model("models:/refit_recom_transactions/None").stages[0]
-    user_transaction_preference = get_user_factors(transaction_recommendation_model, "transactions")
-    user_views = user_events.where(f.col("event_type_name")=="view")
-    view_recommendation_model = fit_optimized_recom(user_views, "views",view_run_id, seed)
-    user_interaction_preference = get_user_factors(view_recommendation_model, "views")    
-    # tran in feature period > 0
-    return (user_base.join(user_transaction_preference, on=["user_id"])
-        .join(user_interaction_preference, on=["user_id"]).join(user_target, on=["user_id"]))
+    cust_pref = get_pref_features(cust_events, dataset_name, refit=True)
+    
+    # ALL TOGETHER
+    customer_model = (cust_base.join(cust_pref, on=["user_id"])
+        .join(cust_target, on=["user_id"]))    
+
+    # IMPUTATION
+    customer_model = _impute_customer_model(customer_model)
+    return customer_model
     
 #
 ##
-### SPLIT AND SAVE
+### SPLIT, SAVE, AND UTILS
 
 def remove_customer_model(dataset_name):
     #data_path = f"dbfs:/mnt/{dataset_name}/delta/customer_model"
     spark.sql("DROP TABLE IF EXISTS "\
         + f"churndb.{dataset_name}_customer_model")
     
-# NOTE: fix this
-def load_user_model(dataset_name):
-    data_path = f"dbfs:/mnt/{dataset_name}/delta/"  
+def load_customer_model(dataset_name):
+    return spark.table(f"churndb.{dataset_name}_customer_model")        
     
-def split_save_customer_model(dataset_name, week_steps=5, week_target=4, overwrite=True):
+def split_save_customer_model(dataset_name, week_steps=11, week_target=4, overwrite=True):
     # construct temp cust models
     import pyspark.sql.functions as f
     from dateutil.relativedelta import relativedelta
@@ -79,15 +91,15 @@ def split_save_customer_model(dataset_name, week_steps=5, week_target=4, overwri
     if overwrite:
         remove_customer_model(dataset_name)    
     # do the steps  
-    events = spark.read.format("delta").load(data_path+"events").sample(fraction=.1)
+    events = spark.read.format("delta").load(data_path+"events")#.sample(fraction=.1)
     max_date = events.agg(f.to_date(f.max(f.col("event_time"))).alias("mdt"))\
         .collect()[0]["mdt"]    
     for week_step in range(week_steps):
         # add some logs/prints
         temp_max_date = max_date+relativedelta(days=-(7*week_step))
         temp_split_date = temp_max_date+relativedelta(days=-(7*week_target))
-        customer_model = _construct_customer_model(
+        customer_model = _construct_customer_model(dataset_name,
             events.where(f.col("event_time")<=temp_max_date), temp_split_date)
         customer_model = customer_model.withColumn("week_step", f.lit(week_step))
-        customer_model.write.format("delta").mode("append").saveAsTable(f"churndb.{dataset_name}_customer_model")
-
+        customer_model.write.format("delta").mode("append")\
+            .saveAsTable(f"churndb.{dataset_name}_customer_model")
