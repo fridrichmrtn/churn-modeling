@@ -8,8 +8,7 @@
 def _variation(colname):
     # coeficient of variation
     import pyspark.sql.functions as f
-    
-    return (f.mean(colname)/f.stddev_samp(colname))
+    return (f.stddev_samp(colname)/f.mean(colname))
 
 def _add_lags(df, colnames, lags=[0,1,2,3], ma=3):
     # lagg features
