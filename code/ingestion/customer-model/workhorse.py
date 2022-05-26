@@ -64,8 +64,9 @@ def _construct_customer_model(events, split_time, seed=42):
 def remove_customer_model(dataset_name):
     #data_path = f"dbfs:/mnt/{dataset_name}/delta/customer_model"
     spark.sql("DROP TABLE IF EXISTS "\
-        + f"churndb.{dataset_name}_customer_model")  
+        + f"churndb.{dataset_name}_customer_model")
     
+# NOTE: fix this
 def load_user_model(dataset_name):
     data_path = f"dbfs:/mnt/{dataset_name}/delta/"  
     
@@ -73,11 +74,10 @@ def split_save_customer_model(dataset_name, week_steps=5, week_target=4, overwri
     # construct temp cust models
     import pyspark.sql.functions as f
     from dateutil.relativedelta import relativedelta
+    data_path = f"dbfs:/mnt/{dataset_name}/delta/"
     
-   
     if overwrite:
-        remove_customer_model(dataset_name)
-        
+        remove_customer_model(dataset_name)    
     # do the steps  
     events = spark.read.format("delta").load(data_path+"events").sample(fraction=.1)
     max_date = events.agg(f.to_date(f.max(f.col("event_time"))).alias("mdt"))\
