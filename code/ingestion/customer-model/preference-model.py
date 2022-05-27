@@ -187,10 +187,7 @@ def get_pref_model(events, dataset_name, refit=True):
                 .stages[0]
             dfs += [_get_user_factors(recom, k)]
     # crude solution for now
-    return dfs[0].join(dfs[1], on=["user_id"])    
-
-# COMMAND ----------
-
+    return dfs[0].join(dfs[1], on=["user_id"]) 
 
 #
 ##
@@ -216,18 +213,13 @@ def _plot_hyperopt(parent_run_id, labels):
         dimensions=list(labels.keys()), labels = labels,
         color_continuous_scale=px.colors.sequential.Jet,
         color_continuous_midpoint=None)
-    fig.show()
-
-# test run
-#from collections import OrderedDict
-#parent_run_id = "016c545a89474ecf9747d6f06dc2affd"
-#labels = OrderedDict([("params.alpha","alpha"), ("params.rank","rank"),
-#    ("params.max_iter","iterations"), ("params.reg_param","regularization strength"),
-#    ("metrics.train_rmse","training RMSE"), ("metrics.val_rmse","validation RMSE")])
-
-#_plot_hyperopt(parent_run_id, labels)
+    fig.show()    
 
 # COMMAND ----------
+
+#
+##
+### test runs
 
 # test run
 #dataset_name = "rees46"
@@ -237,3 +229,12 @@ def _plot_hyperopt(parent_run_id, labels):
 
 # test run
 #_prerun_optimize_recom("rees46")
+
+# test run
+#from collections import OrderedDict
+#parent_run_id = "016c545a89474ecf9747d6f06dc2affd"
+#labels = OrderedDict([("params.alpha","alpha"), ("params.rank","rank"),
+#    ("params.max_iter","iterations"), ("params.reg_param","regularization strength"),
+#    ("metrics.train_rmse","training RMSE"), ("metrics.val_rmse","validation RMSE")])
+
+#_plot_hyperopt(parent_run_id, labels)
