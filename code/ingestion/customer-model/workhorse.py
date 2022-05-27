@@ -1,9 +1,9 @@
 # Databricks notebook source
-# MAGIC %run "./base-features"
+# MAGIC %run "./base-model"
 
 # COMMAND ----------
 
-# MAGIC %run "./preference-features"
+# MAGIC %run "./preference-model"
 
 # COMMAND ----------
 
@@ -57,15 +57,12 @@ def _construct_customer_model(dataset_name, events, split_time):
     cust_events = _get_feature_events(events, split_time).persist()    
 
     # BASE MODEL
-    cust_base = get_base_features(cust_events)
-
+    cust_base = get_base_model(cust_events)
     # PREFERENCE MODELS
-    cust_pref = get_pref_features(cust_events, dataset_name, refit=True)
-    
+    cust_pref = get_pref_model(cust_events, dataset_name, refit=True)
     # ALL TOGETHER
     customer_model = (cust_base.join(cust_pref, on=["user_id"])
         .join(cust_target, on=["user_id"]))    
-
     # IMPUTATION
     customer_model = _impute_customer_model(customer_model)
     return customer_model

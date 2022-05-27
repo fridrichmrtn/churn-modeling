@@ -8,6 +8,7 @@
 def _rees46_load(data_path):
     import pyspark.sql.functions as f
     from pyspark.sql.types import StructType, IntegerType, DoubleType, TimestampType, StringType
+    
     # load raw data
     events_schema = StructType()\
         .add("event_time",TimestampType(), True)\
@@ -31,6 +32,7 @@ def _rees46_load(data_path):
 # FIX TIMESTAMP, STANDARDIZE AND RENAME COLUMNS, POSSIBLY ADD ID-REMAPP
 def _rees46_fix(events):
     import pyspark.sql.functions as f
+    
     # timestamp and names
     events = (events
         .withColumn("event_time", f.col("event_time")+f.expr("INTERVAL 6 HOURS"))
@@ -46,6 +48,7 @@ def _rees46_fix(events):
 # FILTER USERS    
 def _rees46_filter(events):
     import pyspark.sql.functions as f
+    
     user_filter = (events.where(f.col("event_type_name")=="purchase")
          .groupBy("user_id")
              .agg(f.countDistinct(f.col("user_session_id")).alias("purchase_count"))
@@ -72,13 +75,14 @@ def _rees46_filter(events):
 ##
 ### CONSTRUCT EVENTS
 
-load_transform_dict = {"rees46":{"load":_rees46_load, "fix":_rees46_fix, "filter":_rees46_filter}}
+load_transform_config = {"rees46":{"load":_rees46_load, "fix":_rees46_fix, "filter":_rees46_filter, "data":f"dbfs:/mnt/rees46/"}}
 
-def construct_events(data_path, dataset_name):
+def construct_events(dataset_name):
     # unpack
-    load = load_transform_dict[dataset_name]["load"]
-    fix = load_transform_dict[dataset_name]["fix"]
-    filter = load_transform_dict[dataset_name]["filter"]
+    data_path = load_transform_config[dataset_name]["data"]+"raw/"
+    load = load_transform_config[dataset_name]["load"]
+    fix = load_transform_config[dataset_name]["fix"]
+    filter = load_transform_config[dataset_name]["filter"]
     
     # load, fix, and filter
     events = load(data_path)
@@ -90,8 +94,10 @@ def construct_events(data_path, dataset_name):
 ##
 ### SAVE TO DELTA
 
-def save_events(events, data_path):
+def save_events(events, dataset_name):
     # do the repartitioning
+    data_path = load_transform_config[dataset_name]["data"]
+    data_path += "concatenated/events"
     (events
          .write.format("delta")#.partitionBy("user_id")
          .mode("overwrite").option("overwriteSchema", "true")

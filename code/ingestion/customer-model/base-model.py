@@ -101,7 +101,7 @@ def _get_sessions(events):
 ##
 ### BASE FEATURES
 
-def get_base_features(events):
+def get_base_model(events):
     from functools import partial
     import pyspark.sql.functions as f
     
@@ -137,3 +137,7 @@ def get_base_features(events):
                            .select(*lag_cols))#.fillna(0)
     # push it out
     return base_features.join(user_month_lags, on=["user_id"], how="inner")
+
+# COMMAND ----------
+
+
