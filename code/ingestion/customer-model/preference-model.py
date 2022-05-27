@@ -1,7 +1,7 @@
 # Databricks notebook source
 #
 ##
-### PREFERENCE CONFIG
+### CONFIG
 # NOTE: consider factoring out config params
 
 from hyperopt import hp
@@ -29,15 +29,10 @@ preference_config = {
 
 # COMMAND ----------
 
-### NOTE: ADD DOCSTRINGS, FACTOR OUT HYPEROPT SPACE AND ITERNO?
-
-#
-##
-### PREFERENCE
-
 #
 ##
 ### HELPERS
+# NOTE: add docstrings?
 
 def _get_exp_id(exp_path):
     import mlflow
@@ -192,7 +187,6 @@ def get_pref_model(events, dataset_name, refit=True):
 #
 ##
 ### PLOTTING
-
 # NOTE: consider scaling metrics to same axis
 
 def _plot_hyperopt(parent_run_id, labels):
