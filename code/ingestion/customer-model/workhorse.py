@@ -51,8 +51,7 @@ def _impute_customer_model(customer_model):
 
 def _construct_customer_model(dataset_name, events, split_time):
     import pyspark.sql.functions as f
-    import mlflow
-    
+    import mlflow    
     cust_target = _get_target(events, split_time)
     cust_events = _get_feature_events(events, split_time).persist()    
 
