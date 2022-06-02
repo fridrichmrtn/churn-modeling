@@ -1,11 +1,13 @@
 # Databricks notebook source
-# MAGIC %run ./pipes/workhorse
+# MAGIC %run ./pipelines
 
 # COMMAND ----------
 
 #
 ##
 ### PIPELINE HYPEROPT
+
+#
 
 def _get_exp_id(exp_path):
     import mlflow

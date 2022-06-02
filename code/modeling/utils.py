@@ -1,7 +1,7 @@
 # Databricks notebook source
 #
 ##
-### PREPROCESSING
+### CUSTOM PIECES OF CODE
 
 # HIERARCHICAL FEATURE SELECTOR
 import numpy as np
@@ -46,34 +46,3 @@ class HierarchicalFeatureSelector(SelectorMixin, BaseEstimator):
         return self
     def _get_support_mask(self):
         return np.array([c in set(self.best_.feature) for c in self.in_features_])
-
-# SETUP PREPROCESSING
-from hyperopt import hp
-from imblearn.pipeline import Pipeline
-from sklearn.feature_selection import VarianceThreshold
-from sklearn.preprocessing import RobustScaler, QuantileTransformer, PowerTransformer
-from imblearn.under_sampling import RandomUnderSampler
-from imblearn.over_sampling import RandomOverSampler
-
-scalers = [RobustScaler(), QuantileTransformer(), PowerTransformer()]
-samplers = [RandomUnderSampler(), RandomOverSampler()]
-
-preprocessing = {
-    "smooth":
-        {"steps":
-            [("variance_filter", VarianceThreshold()),
-            ("data_scaler", PowerTransformer()),
-            ("feature_selector", HierarchicalFeatureSelector()),
-            ("data_sampler", RandomUnderSampler())],
-        "space":
-            {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-2, 10**0),
-            "data_scaler":hp.choice("data_scaler", scalers),
-            "feature_selector__n_features":hp.randint("feature_selector__n_features", 5, 100),
-            "data_sampler":hp.choice("data_sampler", samplers)}},
-    "tree":
-         {"steps":
-              [("variance_filter", VarianceThreshold()),
-              ("data_sampler", RandomUnderSampler())],
-         "space":
-             {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-2, 10**0),
-             "data_sampler":hp.choice("data_sampler", samplers)}}}
