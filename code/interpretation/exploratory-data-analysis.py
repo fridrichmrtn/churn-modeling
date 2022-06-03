@@ -52,17 +52,54 @@ feat_cols = [c for c in dfp.columns if c not in set(out_cols)]
 
 # COMMAND ----------
 
+import numpy as np
+
+n_features = 10
+tf_corr = [pearsonr(dfp["target_event"], dfp[col]) for col in feat_cols]
+tf_mask = [tf[1]<=0.001/len(tf_corr) for tf in tf_corr]
+
+if np.sum(tf_mask)<=10:
+    return 1
+else:
+    # filter existing data with mask
+    # do the shit
+    # rectify 
 
 
 # COMMAND ----------
 
-#
-##
-### WRAP OPTIMIZATION AROUND THIS
+import pandas as pd
+correlations = pd.DataFrame(tf_corr, index=feat_cols).reset_index()
+correlations.columns = ["feature", "r", "p"]
+correlations["abs_r"] = correlations.r.abs()
+correlations
 
-#
-##
-### CONSIDER MULTIPLE PROCESSING BRANCHES
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+import numpy as np
+np.sum(tar_feat_mask)
+
+# COMMAND ----------
+
+len(tar_feat_mask)
+
+# COMMAND ----------
+
+# meh, just try the method
+
+# for all features calculate correlation with the target
+# if the correlation is not zero consider feature for another round
+# check if the significant feature count is higher than n features
+    # if not return significant features
+    # if yes, continue with the hagg
+
+# COMMAND ----------
+
+
 
 #
 ##
