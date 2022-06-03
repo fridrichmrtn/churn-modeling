@@ -75,7 +75,7 @@ def _rees46_filter(events):
 ##
 ### CONSTRUCT EVENTS
 
-load_transform_config = {"rees46":{"load":_rees46_load, "fix":_rees46_fix, "filter":_rees46_filter, "data":f"dbfs:/mnt/rees46/"}}
+load_transform_config = {"rees46":{"load":_rees46_load, "fix":_rees46_fix, "filter":_rees46_filter, "data":"dbfs:/mnt/rees46/"}}
 
 def construct_events(dataset_name):
     # unpack
