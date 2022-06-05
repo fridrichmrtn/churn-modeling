@@ -85,7 +85,7 @@ def _optimize_pipeline(X, y, dataset_name, pipe_name):
 
 # lets roll
 import pyspark.sql.functions as f
-dfp = spark.table("churndb.rees46_customer_model").where(f.col("week_step")==0).toPandas()
+dfp = spark.table("churndb.rees46_customer_model").where(f.col("week_step")==1).toPandas()
 out_cols = ["user_id", "target_event", "target_revenue", "week_step"]
 feat_cols = [c for c in dfp.columns if c not in set(out_cols)]
 
@@ -94,118 +94,9 @@ y = dfp["target_event"]
 
 # COMMAND ----------
 
-dfp = spark.table("churndb.rees46_customer_model")#.toPandas()
-
-# COMMAND ----------
-
-dfp.write.parquet("dbfs:/mnt/rees46/customer_model")
-
-# COMMAND ----------
-
-dataset_name = "test"
-pipe_name = "svm_rbf"
+dataset_name = "meh"
+pipe_name = "mlp"
 _optimize_pipeline(X, y, dataset_name, pipe_name)
-
-# COMMAND ----------
-
-dataset_name = "test"
-pipe_name = "svm_rbf"
-_optimize_pipeline(X, y, dataset_name, pipe_name)
-
-# COMMAND ----------
-
-from sklearn.model_selection import train_test_split
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, stratify=y)
-#X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, stratify=y_train)
-
-# COMMAND ----------
-
-from keras.models import Sequential
-from keras.layers import Dense, LeakyReLU, BatchNormalization
-
-def cm():
-    model = Sequential()
-    model.add(Dense(100))
-    model.add(LeakyReLU(alpha=0.3))
-    model.add(BatchNormalization())
-    model.add(Dense(1, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy', optimizer='rmsprop', metrics=['accuracy'])
-    return model
-
-# COMMAND ----------
-
-try:
-    import scikeras
-except ImportError:
-    !python -m pip install scikeras
-
-# COMMAND ----------
-
-from tensorflow import keras
-
-
-def get_clf(meta, hidden_layer_sizes, dropout):
-    n_features_in_ = meta["n_features_in_"]
-    n_classes_ = meta["n_classes_"]
-    model = keras.models.Sequential()
-    model.add(keras.layers.Input(shape=(n_features_in_,)))
-    for hidden_layer_size in hidden_layer_sizes:
-        model.add(keras.layers.Dense(hidden_layer_size))
-        model.add(keras.layers.LeakyReLU(alpha=0.3))
-        model.add(keras.layers.Dropout(dropout))
-    model.add(keras.layers.Dense(1, activation="sigmoid"))
-    return model
-
-from scikeras.wrappers import KerasClassifier
-
-
-clf = KerasClassifier(
-    model=get_clf,
-    loss="binary_crossentropy",
-    hidden_layer_sizes=(100,),
-    dropout=0.5,
-    optimizer__learning_rate=0.0005,
-    optimizer="adam",
-    epochs=10,
-    batch_size=5
-)
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-from sklearn.calibration import CalibratedClassifierCV
-from scikeras.wrappers import KerasClassifier
-
-model = CalibratedClassifierCV(clf)
-model.fit(X_train, y_train)
-
-# COMMAND ----------
-
-from tensorflow.keras.callbacks import EarlyStopping
-es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=10)
-model.fit(X_train, y_train, epochs=200, batch_size=10, validation_data=(X_val, y_val), callbacks=[es])
-
-# COMMAND ----------
-
-from sklearn.metrics import f1_score, accuracy_score
-print(f1_score(y_test, model.predict(X_test)))
-
-# COMMAND ----------
-
-from sklearn.linear_model import LogisticRegressionCV
-from sklearn.neural_network import MLPClassifier
-from sklearn.ensemble import HistGradientBoostingClassifier
-mlp = HistGradientBoostingClassifier()
-mlp.fit(X_train, y_train)
-print(f1_score(y_test, mlp.predict(X_test)))
-
-# COMMAND ----------
-
-
 
 # COMMAND ----------
 
