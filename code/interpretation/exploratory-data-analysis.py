@@ -371,6 +371,18 @@ print(f1_score(y_test,[0 if r[0] > r[1] else 1 for r in (lr_test_pred+lgbm_test_
 
 # COMMAND ----------
 
+from tensorflow import keras
+activation="leakyReLU"
+if activation=="leakyReLU":
+    activation = keras.layers.LeakyReLU()
+    
+m = keras.Sequential()
+m.add(keras.layers.Dense(1, activation=activation))
+m.compile()
+m.summary()
+
+# COMMAND ----------
+
 # simulation
 
 # for each category, draw initial margin
