@@ -38,9 +38,10 @@ def glue_pipeline(pipe_name, dataset_name, week_step, refit=True):
         exp_name = f"{dataset_name}_{week_step}_{pipe_name}_model"
         exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
         mlflow.set_experiment(experiment_id=exp_id)
+        # NOTE: consider removing n_jobs
         with mlflow.start_run() as run:
             calibrated_pipeline = CalibratedClassifierCV(optimized_pipeline,
-                method="isotonic").fit(
+                method="isotonic", n_jobs=5).fit( 
                     data["train"]["X"], data["train"]["y"])
             # log model
             mlflow.sklearn.log_model(calibrated_pipeline,
@@ -62,6 +63,7 @@ def glue_pipeline(pipe_name, dataset_name, week_step, refit=True):
 # COMMAND ----------
 
 # NOTE: broadcast this across the workers?
+# NOTE: lol, factor out the data extraction, you moron
 for pipe_name in ["lr","dt"]:
     for week_step in range(2,12):
         glue_pipeline(pipe_name, "rees46", week_step, True)
