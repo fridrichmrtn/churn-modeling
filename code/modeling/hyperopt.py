@@ -1,5 +1,5 @@
 # Databricks notebook source
-# MAGIC %run ./pipelines
+# MAGIC %run ./step-spaces
 
 # COMMAND ----------
 
@@ -8,7 +8,7 @@
 ### PIPELINE HYPEROPT
 
 hyperopt_config = {
-    "max_evals":10,
+    "max_evals":25,
     "seed":20220602}
 
 def _get_exp_id(exp_path):
@@ -58,53 +58,20 @@ def _evaluate_pipeline(params, pipe, X, y, seed):
     return {"loss":-metrics["test_f1_score"], "status":STATUS_OK}
 
 
-def _optimize_pipeline(X, y, dataset_name, pipe_name):
+def _optimize_pipeline(X, y, pipe, space):
 
-    pipe = get_pipe(pipe_name)
-    space = get_space(pipe_name)
     max_evals = hyperopt_config["max_evals"]
     seed = hyperopt_config["seed"]
     
     import mlflow
     from hyperopt import fmin, tpe, space_eval
-    from functools import partial
-
+    from functools import partial 
     # run optimization & staff
-    exp_name = f"{dataset_name}_optimize_pipe_{pipe_name}"
-    exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
-    mlflow.set_experiment(experiment_id=exp_id)
-    with mlflow.start_run() as run:
-        space_optimized = fmin(
-            fn=partial(_evaluate_pipeline,
-                pipe=pipe, X=X, y=y, seed=seed),
-            max_evals=max_evals, space=space, algo=tpe.suggest)
-        return space_eval(space, space_optimized)
+
+    space_optimized = fmin(
+        fn=partial(_evaluate_pipeline,
+            pipe=pipe, X=X, y=y, seed=seed),
+        max_evals=max_evals, space=space, algo=tpe.suggest)
+    return pipe.set_params(**space_eval(space, space_optimized))
 
 
-# COMMAND ----------
-
-# lets roll
-import pyspark.sql.functions as f
-dfp = spark.table("churndb.rees46_customer_model").where(f.col("week_step")==1).toPandas()
-out_cols = ["user_id", "target_event", "target_revenue", "week_step"]
-feat_cols = [c for c in dfp.columns if c not in set(out_cols)]
-
-X = dfp.loc[:, feat_cols].copy()
-y = dfp["target_event"]
-
-# COMMAND ----------
-
-dataset_name = "meh"
-pipe_name = "mlp"
-_optimize_pipeline(X, y, dataset_name, pipe_name)
-
-# COMMAND ----------
-
-# CONSIDER REWIRING PRUNING TO ONE PARAM - TREES
-
-# dataset name mapping
-
-# all previous - hyperopt and training
-# log model
-# evaluate - training, testing
-# log metrics
