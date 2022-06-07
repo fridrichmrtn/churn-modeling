@@ -8,7 +8,7 @@
 ### PIPELINE HYPEROPT
 
 hyperopt_config = {
-    "max_evals":25,
+    "max_evals":10,
     "seed":20220602}
 
 def _get_exp_id(exp_path):
@@ -59,19 +59,15 @@ def _evaluate_pipeline(params, pipe, X, y, seed):
 
 
 def _optimize_pipeline(X, y, pipe, space):
-
+    import mlflow
+    from hyperopt import fmin, tpe, space_eval, SparkTrials
+    from functools import partial
+    
     max_evals = hyperopt_config["max_evals"]
     seed = hyperopt_config["seed"]
-    
-    import mlflow
-    from hyperopt import fmin, tpe, space_eval
-    from functools import partial 
-    # run optimization & staff
-
     space_optimized = fmin(
         fn=partial(_evaluate_pipeline,
             pipe=pipe, X=X, y=y, seed=seed),
-        max_evals=max_evals, space=space, algo=tpe.suggest)
+        max_evals=max_evals, space=space, algo=tpe.suggest,
+        trials=SparkTrials(parallelism=2))
     return pipe.set_params(**space_eval(space, space_optimized))
-
-
