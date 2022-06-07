@@ -67,3 +67,9 @@ def glue_pipeline(pipe_name, dataset_name, week_step, refit=True):
 for pipe_name in ["lr","dt"]:
     for week_step in range(2,12):
         glue_pipeline(pipe_name, "rees46", week_step, True)
+
+# COMMAND ----------
+
+# error metrics and confidence bounds
+# bias-variance tradeoff
+# testing for difference
