@@ -140,7 +140,7 @@ from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassif
 models = {
     "lr":
           {"model":
-               [("lr", LogisticRegression(solver="saga", penalty="elasticnet", n_jobs=-1))],
+               [("lr", LogisticRegression(solver="saga", penalty="elasticnet"))],
            "space":
                {"lr__C":hp.uniform("lr__C",10**-2,10**1),
                 "lr__l1_ratio":hp.uniform("lr__l1_ratio",0,1),
