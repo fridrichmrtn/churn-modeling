@@ -11,6 +11,8 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_selection import SelectorMixin
 from sklearn.utils.validation import check_is_fitted
 from imblearn.pipeline import Pipeline
+from sklearn.decomposition import PCA, FastICA
+from sklearn.random_projection import GaussianRandomProjection
 from sklearn.cluster import AgglomerativeClustering
 
 class DataFrameTransposer(BaseEstimator, TransformerMixin):
@@ -28,7 +30,9 @@ class HierarchicalFeatureSelector(SelectorMixin, BaseEstimator):
         
     def get_cluster_assignments_(self, data):
         data = data.loc[:,self.results_.feature.values]
+        n_components = data.shape[1]
         pipe = Pipeline([("rotate", DataFrameTransposer()),
+            ("pca", GaussianRandomProjection(n_components=n_components)),
             ("cluster", AgglomerativeClustering(n_clusters=self.n_features))])
         return pipe.fit_predict(data)
     
