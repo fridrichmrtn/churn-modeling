@@ -3,17 +3,16 @@
 ##
 ### CUSTOM PIECES OF CODE
 
-# HIERARCHICAL FEATURE SELECTOR
+# HFS
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_selection import SelectorMixin
-from sklearn.utils.validation import check_is_fitted
 from imblearn.pipeline import Pipeline
-from sklearn.decomposition import PCA, FastICA
 from sklearn.random_projection import GaussianRandomProjection
 from sklearn.cluster import AgglomerativeClustering
+from sklearn.utils.validation import check_is_fitted
 
 class DataFrameTransposer(BaseEstimator, TransformerMixin):
   
@@ -96,9 +95,8 @@ class MLPClassifier(KerasClassifier):
 
 #
 ##
-### PREPROCESSING
+### SETUP PREPROCESSING
 
-# SETUP PREPROCESSING
 from hyperopt import hp
 from imblearn.pipeline import Pipeline
 from sklearn.feature_selection import VarianceThreshold
@@ -134,8 +132,7 @@ preprocessing = {
 ### SETUP MODELS
 
 from hyperopt import hp
-#from sklearn.calibration import CalibratedClassifierCV
-from sklearn.linear_model import LogisticRegression, RidgeClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.svm import LinearSVC
 from sklearn.kernel_approximation import Nystroem
 from sklearn.tree import DecisionTreeClassifier
@@ -220,9 +217,7 @@ models = {
                 "hgb__min_samples_leaf":hp.randint("hgb__min_samples_leaf",1,100),
                 "hgb__l2_regularization":hp.uniform("hgb__l2_regularization",0,10**2),                
         },
-          "preprocessing":"tree"}        
-    
-}
+          "preprocessing":"tree"}}
 
 #
 ##
@@ -230,9 +225,7 @@ models = {
 
 pipelines_spaces = {k:{"pipeline":Pipeline(preprocessing[v["preprocessing"]]["steps"]+v["model"]),
     "space":dict(preprocessing[v["preprocessing"]]["space"],**v["space"])}
-     for k, v in models.items()}
+         for k, v in models.items()}
 
-def get_pipe(name):
+def get_pipeline_spaces(name):
     return pipelines_spaces[name]["pipeline"]
-def get_space(name):
-    return pipelines_spaces[name]["space"]
