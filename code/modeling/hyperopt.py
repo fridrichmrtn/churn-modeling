@@ -8,7 +8,7 @@
 ### PIPELINE HYPEROPT
 
 hyperopt_config = {
-    "max_evals":10,
+    "max_evals":5,
     "seed":20220602}
 
 def _get_exp_id(exp_path):
