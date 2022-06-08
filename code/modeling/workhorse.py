@@ -25,7 +25,7 @@ def _get_data(dataset_name, week_step):
     test = _optimize_numeric_dtypes(test)
     out_cols = ["user_id", "target_event", "target_revenue", "week_step"]
     feat_cols = [c for c in train.columns if c not in set(out_cols)]
-    return {"train":{"X":_optimize_numeric_dtypes(rain.loc[:,feat_cols]), "y":train["target_event"]},
+    return {"train":{"X":_optimize_numeric_dtypes(train.loc[:,feat_cols]), "y":train["target_event"]},
         "test":{"X":_optimize_numeric_dtypes(test.loc[:,feat_cols]),"y":test["target_event"]},
         "name":f"{dataset_name}_{week_step}"}
 
@@ -93,7 +93,7 @@ for week_step in range(2,4):
 
 # RUNTIME ESTIMATES/ fast algos
 # OPT - 2 mins a fit, 10 fits within an opt, 10 opt across weeks = 200 mins opt
-# CAL - 3 mins a fit, 5 fits per cal, 10 cals across weeks = 150 mins
+# CAL - 3 mins a fit, 5 fits per cal, 10 cals across weeks = 150 mins cal
 # SUBTOTAL 6 h
 ## ALL ALGOS >= 48h wo distributed backends
 
@@ -111,34 +111,3 @@ for week_step in range(2,4):
 
 # STRATEGY 5
 # compress dataset, eliminate prev steps
-
-# COMMAND ----------
-
-# import pandas as pd
-# from itertools import product
-# import pyspark.sql.functions as f
-# from pyspark.sql.types import *
-
-# schema = StructType([
-#     StructField("accuracy_score", FloatType(), True),
-#     StructField("precision_score", FloatType(), True),
-#     StructField("recall_score", FloatType(), True),
-#     StructField("f1_score", FloatType(), True),
-#     StructField("roc_auc_score", FloatType(), True),
-#     StructField("type", StringType(), True),
-#     StructField("week_step", IntegerType(), True),
-#     StructField("pipe", StringType(), True)])  
-
-
-# pipe_steps = pd.DataFrame(product(["lr", "dt"],range(2,4)),
-#     columns=["pipe_name","week_step"])
-
-# @f.pandas_udf(schema, f.PandasUDFType.GROUPED_MAP)
-# def udf_glue_pipeline(row):
-#     pipe_name = row["pipe_name"]
-#     week_step = row["week_step"]
-#     pipe = get_pipe(pipe_name)
-#     space = get_space(pipe_name)
-#     data = _get_data("rees46", week_step)
-#     return glue_pipeline(pipe, space, data, True)
-# results = pipe_steps.groupby("week_step").apply(udf_glue_pipeline)
