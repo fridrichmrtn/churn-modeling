@@ -60,7 +60,7 @@ def _evaluate_pipeline(params, pipe, X, y, seed):
 
 def _optimize_pipeline(X, y, pipe, space):
     import mlflow
-    from hyperopt import fmin, tpe, space_eval, SparkTrials
+    from hyperopt import fmin, tpe, space_eval, SparkTrials, Trials
     from functools import partial
     
     max_evals = hyperopt_config["max_evals"]
@@ -68,5 +68,6 @@ def _optimize_pipeline(X, y, pipe, space):
     space_optimized = fmin(
         fn=partial(_evaluate_pipeline,
             pipe=pipe, X=X, y=y, seed=seed),
-        max_evals=max_evals, space=space, algo=tpe.suggest)
+        trials=SparkTrials(),
+        space=space, max_evals=max_evals, algo=tpe.suggest)
     return pipe.set_params(**space_eval(space, space_optimized))

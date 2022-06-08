@@ -1,7 +1,7 @@
 # Databricks notebook source
 #
 ##
-### CUSTOM PIECES OF CODE
+### Custom HFS and MLP
 
 # HFS
 import numpy as np
@@ -96,7 +96,6 @@ class MLPClassifier(KerasClassifier):
 #
 ##
 ### SETUP PREPROCESSING
-
 from hyperopt import hp
 from imblearn.pipeline import Pipeline
 from sklearn.feature_selection import VarianceThreshold
@@ -130,7 +129,6 @@ preprocessing = {
 #
 ##
 ### SETUP MODELS
-
 from hyperopt import hp
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import LinearSVC
@@ -141,11 +139,11 @@ from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassif
 models = {
     "lr":
           {"model":
-               [("lr", LogisticRegression(solver="saga", penalty="elasticnet"))],
+               [("lr", LogisticRegression(solver="saga",
+                   penalty="elasticnet", max_iter=200))],          
            "space":
                {"lr__C":hp.uniform("lr__C",10**-2,10**1),
-                "lr__l1_ratio":hp.uniform("lr__l1_ratio",0,1),
-                "lr__max_iter":hp.uniform("lr__max_iter",5*10**2,5*10**3)},
+                "lr__l1_ratio":hp.uniform("lr__l1_ratio",0,1)},
            "preprocessing":"smooth"},
     "svm_lin":
           {"model":
@@ -221,11 +219,11 @@ models = {
 
 #
 ##
-### PUT IT TOGETHER
-
-pipelines_spaces = {k:{"pipeline":Pipeline(preprocessing[v["preprocessing"]]["steps"]+v["model"]),
-    "space":dict(preprocessing[v["preprocessing"]]["space"],**v["space"])}
+### PIPELINES
+pipelines = {k:{"steps":Pipeline(preprocessing[v["preprocessing"]]["steps"]+v["model"]),
+    "space":dict(preprocessing[v["preprocessing"]]["space"],**v["space"]),
+    "name":k}
          for k, v in models.items()}
 
-def get_pipeline_spaces(name):
-    return pipelines_spaces[name]["pipeline"]
+def get_pipeline(name):
+    return pipelines[name]
