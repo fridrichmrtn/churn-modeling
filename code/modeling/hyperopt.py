@@ -68,6 +68,6 @@ def _optimize_pipeline(X, y, pipe, space):
     space_optimized = fmin(
         fn=partial(_evaluate_pipeline,
             pipe=pipe, X=X, y=y, seed=seed),
-        trials=SparkTrials(),
+        trials=SparkTrials(parallelism=5),
         space=space, max_evals=max_evals, algo=tpe.suggest)
     return pipe.set_params(**space_eval(space, space_optimized))
