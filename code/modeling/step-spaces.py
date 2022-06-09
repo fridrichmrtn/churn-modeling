@@ -1,9 +1,45 @@
 # Databricks notebook source
 #
 ##
-### Custom HFS and MLP
+### Custom pipeline steps
 
-# HFS
+# SAMPLER
+from imblearn.base import FunctionSampler
+from imblearn.under_sampling import RandomUnderSampler
+from imblearn.over_sampling import RandomOverSampler
+
+class RandomSampler(FunctionSampler):
+
+    def __init__(self, strategy="under_sampling",  accept_sparse=True, validate=True):
+        super().__init__()
+        self.funcs = {"over_sampling":RandomOverSampler().fit_resample,
+            "under_sampling":RandomUnderSampler().fit_resample}        
+        self.strategy = strategy
+        self.func = self.funcs[strategy]
+        self.accept_sparse = accept_sparse
+        self.validate = validate
+    
+
+# SCALER
+from sklearn.base import TransformerMixin, BaseEstimator
+from sklearn.preprocessing import RobustScaler, QuantileTransformer, PowerTransformer
+
+class Scaler(TransformerMixin, BaseEstimator):
+    
+    def __init__(self, strategy="robust"):
+        super().__init__()
+        self.scalers = {"robust":RobustScaler, "power":PowerTransformer, "quantile":QuantileTransformer}
+        self.strategy = strategy
+        self.scaler = self.scalers[self.strategy]()
+        
+    def fit(self, X, y,):
+        self.scaler = self.scaler.fit(X,y)
+        return self.scaler
+    
+    def transform(self, X):
+        return self.scaler.transform(X)
+
+# FEATURE SELECTOR
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
@@ -103,28 +139,30 @@ from sklearn.preprocessing import RobustScaler, QuantileTransformer, PowerTransf
 from imblearn.under_sampling import RandomUnderSampler
 from imblearn.over_sampling import RandomOverSampler
 
-scalers = [RobustScaler(), QuantileTransformer(), PowerTransformer()]
-samplers = [RandomUnderSampler(), RandomOverSampler()]
+scaling = ["robust", "quantile", "power"]
+sampling = ["under_sampling", "over_sampling"]
 
 preprocessing = {
     "smooth":
         {"steps":
             [("variance_filter", VarianceThreshold()),
-            ("data_scaler", PowerTransformer()),
+            ("data_scaler", Scaler()),
             ("feature_selector", HierarchicalFeatureSelector()),
-            ("data_sampler", RandomUnderSampler())],
+            ("data_sampler", RandomSampler())],
         "space":
             {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-1, 5*10**1),
-            "data_scaler":hp.choice("data_scaler", scalers),
+            "data_scaler__strategy":hp.choice("data_scaler__strategy", scaling),
             "feature_selector__n_features":hp.randint("feature_selector__n_features", 5, 100),
-            "data_sampler":hp.choice("data_sampler", samplers)}},
+            "data_sampler__strategy":hp.choice("data_sampler__strategy", sampling)
+            }},
     "tree":
          {"steps":
               [("variance_filter", VarianceThreshold()),
-              ("data_sampler", RandomUnderSampler())],
+              ("data_sampler", RandomSampler())],
          "space":
              {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-2, 10**0),
-             "data_sampler":hp.choice("data_sampler", samplers)}}}
+             "data_sampler__strategy":hp.choice("data_sampler__strategy", sampling)
+             }}}
 
 #
 ##
