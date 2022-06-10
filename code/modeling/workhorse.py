@@ -77,34 +77,54 @@ def glue_pipeline(pipe, data, refit=True):
 
 # COMMAND ----------
 
-# try it with much smaller dataset
-from sklearn.datasets import load_breast_cancer
-from imblearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.tree import DecisionTreeClassifier
-from imblearn.under_sampling import RandomUnderSampler
-from imblearn.over_sampling import RandomOverSampler
-
 import mlflow
 
 
-steps = get_pipeline("dt")["steps"]
-space = get_pipeline("dt")["space"]
-
-#data = _get_data("rees46", 5)
-
-data = load_breast_cancer(as_frame=True)
-X_train, X_test, y_train, y_test = train_test_split(data["data"],data["target"], test_size=.4)
+steps = get_pipeline("hgb")["steps"]
+space = get_pipeline("hgb")["space"]
+data = _get_data("rees46", 5)
 
 with mlflow.start_run() as run:  
-    results = _optimize_pipeline(
-        X_train, y_train,
+    pipe = _optimize_pipeline(
+        data["train"]["X"], data["train"]["y"],
             steps, space)
 
 # COMMAND ----------
 
+from sklearn.utils import parallel_backend
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.model_selection import cross_val_score
+from joblibspark import register_spark
 
-    
+register_spark() # register spark backend
+with parallel_backend('spark', n_jobs=3):
+    scores = cross_val_score(pipe, data["train"]["X"],  data["train"]["y"], cv=5)
+print(scores)
+
+# COMMAND ----------
+
+from sklearn.calibration import CalibratedClassifierCV
+register_spark() # register spark backend
+with parallel_backend('spark', n_jobs=5):
+    calibrated_pipe = CalibratedClassifierCV(pipe, cv=5, method="isotonic")
+    calibrated_pipe.fit(data["train"]["X"],  data["train"]["y"])
+
+# COMMAND ----------
+
+from sklearn.calibration import CalibratedClassifierCV
+#register_spark() # register spark backend
+#with parallel_backend('spark', n_jobs=3):
+calibrated_pipe1 = CalibratedClassifierCV(pipe, cv=5, method="isotonic", n_jobs=2)
+calibrated_pipe1.fit(data["train"]["X"],  data["train"]["y"])
+
+# COMMAND ----------
+
+# BENCHMARK THE CALIBRATION
+
+
+# COMMAND ----------
+
+# SEPARATE HYPEROPT
 
 # COMMAND ----------
 
@@ -154,6 +174,7 @@ Scaler()
 
 # COMMAND ----------
 
+import mlflow
 from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
 
@@ -167,10 +188,52 @@ from functools import partial
 from imblearn.base import FunctionSampler
 
 
+# SAMPLER
+from imblearn.base import FunctionSampler
+from imblearn.under_sampling import RandomUnderSampler
+from imblearn.over_sampling import RandomOverSampler
 
-pipe = Pipeline([("sa", Sampler(sampling_strategy="under_sampling")),
-    ("sc", Scaler(scaling_strategy="robust")),
+class RandomSampler(FunctionSampler):
+
+    def __init__(self, strategy="under_sampling",  accept_sparse=True, validate=True):
+        super().__init__()
+        self.funcs = {"over_sampling":RandomOverSampler().fit_resample,
+            "under_sampling":RandomUnderSampler().fit_resample}        
+        self.strategy = strategy
+        self.func = self.funcs[strategy]
+        self.accept_sparse = accept_sparse
+        self.validate = validate
+    
+
+# SCALER
+from sklearn.base import TransformerMixin, BaseEstimator
+from sklearn.preprocessing import RobustScaler, QuantileTransformer, PowerTransformer
+
+class Scaler(TransformerMixin, BaseEstimator):
+    
+    def __init__(self, strategy="robust"):
+        super().__init__()
+        self.scalers = {"robust":RobustScaler,
+            "power":PowerTransformer, "quantile":QuantileTransformer}
+        self.strategy = strategy
+        self.scaler = self.scalers[self.strategy]()
+        
+    def fit(self, X, y,):
+        self.scaler = self.scaler.fit(X,y)
+        return self#.scaler
+    
+    def transform(self, X):
+        return self.scaler.transform(X)
+    
+pipe = Pipeline([("sa", RandomSampler()),
+    ("sc", RobustScaler()),
     ("lr", LogisticRegression())])
+
+space = {
+  "lr__C": hp.uniform("lr__C", 10**-3, 10),
+  "sa__strategy": hp.choice("sa__strategy",["under_sampling","over_sampling"]),
+  "sc":hp.choice("sc",[PowerTransformer(), RobustScaler(), QuantileTransformer()])}
+
 
 data = load_breast_cancer(as_frame=True)
 X_train, X_test, y_train, y_test = train_test_split(data["data"],data["target"], test_size=.4)
@@ -180,22 +243,15 @@ def run_lr(params, pipe):
     pipe.set_params(**params)
     pipe.fit(X_train,y_train)
     obj_metric = pipe.score(X_test, y_test)
-    return {"loss": obj_metric, "status": STATUS_OK}
+    return {"loss": -obj_metric, "status": STATUS_OK}
 
-space = {
-  "lr__C": hp.uniform("lr__C", 10**-3, 10),
-  "sa__sampling_strategy": hp.choice("sa__sampling_strategy",["under_sampling","over_sampling"]),
-  "sc__scaling_strategy":hp.choice("sa__scaling_strategy",["power","quantile", "robust"])
-}
 
 spark_trials =  SparkTrials(parallelism=8)
 #spark_trials = Trials()
 with mlflow.start_run():
-    best_hyperparam = fmin(fn=partial(run_lr, pipe=pipe), 
-    space=space, 
-    algo=tpe.suggest, 
-    max_evals=16, 
-    trials=spark_trials)
+    best_hyperparam = fmin(fn = partial(run_lr, pipe = pipe), 
+        space = space, algo = tpe.suggest,
+            max_evals = 16, trials = spark_trials)
 
 # COMMAND ----------
 
