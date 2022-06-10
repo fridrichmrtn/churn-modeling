@@ -111,7 +111,7 @@ preprocessing = {
     "smooth":
         {"steps":
             [("variance_filter", VarianceThreshold()),
-            ("data_scaler", Scaler()),
+            ("data_scaler", PowerTransformer()),
             ("feature_selector", HierarchicalFeatureSelector()),
             ("data_sampler", RandomUnderSampler())],
         "space":
