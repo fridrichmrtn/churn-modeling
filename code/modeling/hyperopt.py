@@ -5,8 +5,8 @@
 
 from hyperopt import SparkTrials, tpe
 hyperopt_config = {
-    "max_evals":5,
-    "trials":SparkTrials(),
+    "max_evals":2,
+    "trials":SparkTrials,
     "algo":tpe.suggest,
     "seed":20220602}
 #
@@ -50,26 +50,29 @@ def _evaluate_pipeline(params, pipe, X, y, seed):
     #import mlflow
     
     data_dict = _train_test_dict(X, y, .4, seed)
-    #with mlflow.start_run(nested=True) as run:
-    #mlflow.log_params(params)
     pipe.set_params(**params)
     pipe.fit(data_dict["train"]["X"], data_dict["train"]["y"])
     metrics = {n+"_"+m:v for n, data in data_dict.items()
         for m,v in _get_performance(pipe, data["X"], data["y"]).items()}
-    #mlflow.log_metrics(metrics)
     return {"loss":-metrics["test_f1_score"], "status":STATUS_OK}
 
 
-def _optimize_pipeline(X, y, pipe, space):
-    #import mlflow
-    from hyperopt import fmin, tpe, space_eval, SparkTrials, Trials
+def _optimize_pipeline(data, pipe):
+    import mlflow
+    from hyperopt import fmin, space_eval
     from functools import partial
     
-    max_evals = hyperopt_config["max_evals"]
-    seed = hyperopt_config["seed"]
-    space_optimized = fmin(
-        fn=partial(_evaluate_pipeline,
-            pipe=pipe, X=X, y=y, seed=seed),
-        trials=SparkTrials(parallelism=2),
-        space=space, max_evals=max_evals, algo=tpe.suggest)
-    return pipe.set_params(**space_eval(space, space_optimized))
+    # set the experiment logging
+    exp_name = "{}_{}_hyperopt".format(data["name"],pipe["name"])
+    exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
+    mlflow.set_experiment(experiment_id=exp_id)
+    with mlflow.start_run() as run:
+        space_optimized = fmin(
+            fn=partial(_evaluate_pipeline,
+                X=data["X"], y=data["y"], pipe=pipe["steps"],\
+                    seed=hyperopt_config["seed"]),
+            space=pipe["space"], max_evals=hyperopt_config["max_evals"], 
+            trials=hyperopt_config["trials"](), algo=hyperopt_config["algo"])
+    pipe["steps"] =  pipe["steps"].set_params(
+        **space_eval(pipe["space"], space_optimized))
+    return pipe
