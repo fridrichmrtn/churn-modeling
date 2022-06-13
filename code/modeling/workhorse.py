@@ -33,6 +33,20 @@ def _get_data(dataset_name, week_step):
             {"X":_optimize_numeric_dtypes(test.loc[:,feat_cols]),
              "y":test["target_event"],
             "name":f"{dataset_name}_{week_step}"}}
+    
+def _fit_calibrated_pipeline(data, pipe):
+    import mlflow
+    from sklearn.calibration import CalibratedClassifierCV
+    
+    exp_name = "{}_{}_refit".format(data["name"],pipe["name"])
+    exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
+    mlflow.set_experiment(experiment_id=exp_id)
+    with mlflow.start_run() as run:
+        pipe["fitted"] = CalibratedClassifierCV(
+            pipe["steps"], cv=5, method="isotonic").fit(data["X"], data["y"])
+        mlflow.sklearn.log_model(pipe["fitted"],
+             exp_name, registered_model_name=exp_name)
+    return pipe    
 
 # SEPARATE PIPELINE FITTING AND EVALUATION
 # 
@@ -90,106 +104,18 @@ def glue_pipeline(pipe, data, refit=True):
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
-# TBD - TEST THAT SHITE ON RUNNING CLUSTER
-def _optimize_pipeline(data, pipe):
-    import mlflow
-    from hyperopt import fmin, space_eval
-    from functools import partial
-    
-    # set the experiment logging
-    exp_name = "{}_{}_hyperopt".format(data["name"],pipe["name"])
-    exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
-    mlflow.set_experiment(experiment_id=exp_id)
-    with mlflow.start_run() as run: 
-        space_optimized = fmin(
-            fn=partial(_evaluate_pipeline,
-                X=data["X"], y=data["y"],pipe=pipe["steps"],\
-                    seed=hyperopt_config["seed"]),
-            space=pipe["space"], max_evals=hyperopt_config["max_evals"], 
-            trials=hyperopt_config["trials"], algo=hyperopt_config["algo"])
-    pipe["steps"] = pipe["steps"].set_params(
-        **space_eval(pipe["space"], space_optimized))
-    return pipe
-    
-# TBD - TEST THAT SHITE ON RUNNING CLUSTER
-def _fit_calibrated_pipeline(data, pipe):
-    import mlflow
-    from sklearn.calibration import CalibratedClassifierCV
-    
-    exp_name = "{}_{}_refit".format(data["name"],pipe["name"])
-    exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
-    mlflow.set_experiment(experiment_id=exp_id)
-    with mlflow.start_run() as run:
-        pipe["fitted"] = CalibratedClassifierCV(
-            pipe["steps"], cv=5, method="isotonic").fit(data["X"], data["y"])
-        mlflow.sklearn.log_model(pipe["fitted"],
-             exp_name, registered_model_name=exp_name)
-    return pipe
-
-# COMMAND ----------
-
-pipe = get_pipeline("hgb")
-data = _get_data("rees46", 5)
-pipe = _optimize_pipeline(data["train"], pipe)
-
-# COMMAND ----------
-
-from sklearn.utils import parallel_backend
-from sklearn.calibration import CalibratedClassifierCV
-from sklearn.model_selection import cross_val_score
-from joblibspark import register_spark
-
-register_spark() # register spark backend
-with parallel_backend('spark', n_jobs=3):
-    scores = cross_val_score(pipe, data["train"]["X"],  data["train"]["y"], cv=5)
-print(scores)
-
-# COMMAND ----------
-
-from sklearn.calibration import CalibratedClassifierCV
-register_spark() # register spark backend
-with parallel_backend('spark', n_jobs=5):
-    calibrated_pipe = CalibratedClassifierCV(pipe, cv=5, method="isotonic")
-    calibrated_pipe.fit(data["train"]["X"],  data["train"]["y"])
-
-# COMMAND ----------
-
-from sklearn.calibration import CalibratedClassifierCV
-#register_spark() # register spark backend
-#with parallel_backend('spark', n_jobs=3):
-calibrated_pipe1 = CalibratedClassifierCV(pipe, cv=5, method="isotonic", n_jobs=2)
-calibrated_pipe1.fit(data["train"]["X"],  data["train"]["y"])
-
-# COMMAND ----------
-
-# BENCHMARK THE CALIBRATION
-# best performed with n jobs 
-
-# COMMAND ----------
-
-# SEPARATE HYPEROPT
-
-# COMMAND ----------
-
-# ASYNC HYPEROPT AND FIT/CALIBRATION, CLEAN CODE
-# REIMPLEMENT CALIBRATION
-# TRY WET RUN ON 2 WEEKS AND CLFS
-
-# COMMAND ----------
-
-# NOTE: broadcast this across the workers?
-for week_step in range(2,4):
+for week_step in range(2, 3):
     data = _get_data("rees46", week_step)
-    for pipe_name in ["hgb","dt"]:
-        pipe = get_pipes(pipe_name)
-        glue_pipeline(pipe, data, True)
+    for pipe_name in ["dt"]:
+        pipe = pipelines[pipe_name]
+        pipe = _optimize_pipeline(data["train"], pipe)
+        pipe = _fit_calibrated_pipeline(data["train"], pipe)
 
 # COMMAND ----------
 
-# RESTRUCTURE THE PROJECT
-# CLEAN CODE
-# SEEMS LIKE KERAS FUN ON MONDAY:)
+# TODAY
+# DO ELT FOR THE RR DATA - HOPEFULLY JUST REFACTOR WHAT IS DONE 
+
+# BACKLOG
+# CHANGE TREE ENSEMBLES TO LGBM
+# CONSIDER REORGANIZING THE CODE
