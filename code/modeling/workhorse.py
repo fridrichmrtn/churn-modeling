@@ -13,9 +13,10 @@ def _optimize_numeric_dtypes(df):
         apply(pd.to_numeric, downcast="integer")
     return df
 
+# data class?
 def _get_data(dataset_name, week_step):
     # NOTE: customer-model/workhorse.py/split_save_customer_model
-    # NOTE: refactor this for own model/profit measures!
+    # NOTE: refactor this for own model/profit measures
     import pyspark.sql.functions as f
     train = spark.table(f"churndb.{dataset_name}_customer_model")\
         .where(f.col("week_step")>week_step).toPandas()
@@ -26,23 +27,29 @@ def _get_data(dataset_name, week_step):
     return {
       "train":
             {"X":_optimize_numeric_dtypes(train.loc[:,feat_cols]),
-             "y":train["target_event"]},
+             "y":train["target_event"],
+            "name":f"{dataset_name}_{week_step}"},
       "test":
             {"X":_optimize_numeric_dtypes(test.loc[:,feat_cols]),
-             "y":test["target_event"]},
-      "name":
-            f"{dataset_name}_{week_step}"}
+             "y":test["target_event"],
+            "name":f"{dataset_name}_{week_step}"}}
 
+# SEPARATE PIPELINE FITTING AND EVALUATION
+# 
 def glue_pipeline(pipe, data, refit=True):
+    
     import mlflow
     from sklearn.model_selection import train_test_split
     from sklearn.calibration import CalibratedClassifierCV
     
     dataset_name = data["name"]
+    # we can shift this into the optimize and calibrate funcs
     week_step = dataset_name.split("_")[1]
     data_pipe_name = dataset_name+"_"+pipe["name"]
    
     if refit:
+        # encapsulate this entirely to the _optimize pipeline func
+        # pass the dataset and pipe dicts directly unpack
         exp_name = f"{data_pipe_name}_hyperopt"
         exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
         mlflow.set_experiment(experiment_id=exp_id)
@@ -50,6 +57,11 @@ def glue_pipeline(pipe, data, refit=True):
             optimized_pipeline = _optimize_pipeline(
                 data["train"]["X"], data["train"]["y"],
                     pipe["steps"], pipe["space"])
+            
+        # encapsulate this in calibrate_fit_pipeline func
+        # consider different naming?
+        # clean up the calibration separation?
+        # probably just ignore parallelization at this point wrt compute?
         exp_name = f"{data_pipe_name}_model"
         exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
         mlflow.set_experiment(experiment_id=exp_id)
@@ -62,6 +74,7 @@ def glue_pipeline(pipe, data, refit=True):
             mlflow.sklearn.log_model(calibrated_pipeline,
                 exp_name, registered_model_name=exp_name)
     else:
+        # 
         exp_name = f"models:/{data_pipe_name}_model/None"
         calibrated_pipeline = mlflow.sklearn.load_model(exp_name)
         
@@ -69,7 +82,7 @@ def glue_pipeline(pipe, data, refit=True):
     results = pd.DataFrame([dict(_get_performance(
         calibrated_pipeline, v["X"], v["y"]),
             **{"type":k,"week_step":week_step,"pipe":pipe_name})
-                for k,v in data.items() if k in ["train", "test"]]) # NOT NICE
+                for k,v in data.items()]) # NOT NICE
     spark.createDataFrame(results)\
         .write.format("delta").mode("append")\
             .saveAsTable(f"churndb.{dataset_name}_performance_evaluation")
@@ -77,17 +90,51 @@ def glue_pipeline(pipe, data, refit=True):
 
 # COMMAND ----------
 
-import mlflow
 
 
-steps = get_pipeline("hgb")["steps"]
-space = get_pipeline("hgb")["space"]
+# COMMAND ----------
+
+# TBD - TEST THAT SHITE ON RUNNING CLUSTER
+def _optimize_pipeline(data, pipe):
+    import mlflow
+    from hyperopt import fmin, space_eval
+    from functools import partial
+    
+    # set the experiment logging
+    exp_name = "{}_{}_hyperopt".format(data["name"],pipe["name"])
+    exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
+    mlflow.set_experiment(experiment_id=exp_id)
+    with mlflow.start_run() as run: 
+        space_optimized = fmin(
+            fn=partial(_evaluate_pipeline,
+                X=data["X"], y=data["y"],pipe=pipe["steps"],\
+                    seed=hyperopt_config["seed"]),
+            space=pipe["space"], max_evals=hyperopt_config["max_evals"], 
+            trials=hyperopt_config["trials"], algo=hyperopt_config["algo"])
+    pipe["steps"] = pipe["steps"].set_params(
+        **space_eval(pipe["space"], space_optimized))
+    return pipe
+    
+# TBD - TEST THAT SHITE ON RUNNING CLUSTER
+def _fit_calibrated_pipeline(data, pipe):
+    import mlflow
+    from sklearn.calibration import CalibratedClassifierCV
+    
+    exp_name = "{}_{}_refit".format(data["name"],pipe["name"])
+    exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
+    mlflow.set_experiment(experiment_id=exp_id)
+    with mlflow.start_run() as run:
+        pipe["fitted"] = CalibratedClassifierCV(
+            pipe["steps"], cv=5, method="isotonic").fit(data["X"], data["y"])
+        mlflow.sklearn.log_model(pipe["fitted"],
+             exp_name, registered_model_name=exp_name)
+    return pipe
+
+# COMMAND ----------
+
+pipe = get_pipeline("hgb")
 data = _get_data("rees46", 5)
-
-with mlflow.start_run() as run:  
-    pipe = _optimize_pipeline(
-        data["train"]["X"], data["train"]["y"],
-            steps, space)
+pipe = _optimize_pipeline(data["train"], pipe)
 
 # COMMAND ----------
 
@@ -120,7 +167,7 @@ calibrated_pipe1.fit(data["train"]["X"],  data["train"]["y"])
 # COMMAND ----------
 
 # BENCHMARK THE CALIBRATION
-
+# best performed with n jobs 
 
 # COMMAND ----------
 
@@ -143,116 +190,6 @@ for week_step in range(2,4):
 
 # COMMAND ----------
 
-# RUNTIME ESTIMATES/ fast algos
-# OPT - 2 mins a fit, 10 fits within an opt, 10 opt across weeks = 200 mins opt
-# CAL - 3 mins a fit, 5 fits per cal, 10 cals across weeks = 150 mins cal
-# SUBTOTAL 6 h
-## ALL ALGOS >= 48h wo distributed backends
-
-# STRATEGY 1
-# paralelize on dataset slices
-
-# STRATEGY 2
-# paralelize within steps - OPT, CAL
-
-# STRATEGY 3
-# rewrite pipelines to spark pipes
-
-# STRATEGY 4
-# redesign pipeline and experiment steps
-
-# STRATEGY 5
-# compress dataset, eliminate prev steps
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-Scaler()
-
-# COMMAND ----------
-
-import mlflow
-from sklearn.datasets import load_breast_cancer
-from sklearn.model_selection import train_test_split
-
-
-from sklearn.preprocessing import StandardScaler, QuantileTransformer
-from sklearn.linear_model import LogisticRegression
-from imblearn.pipeline import Pipeline
-
-from hyperopt import hp, tpe, fmin, SparkTrials, Trials, STATUS_OK, space_eval
-from functools import partial
-from imblearn.base import FunctionSampler
-
-
-# SAMPLER
-from imblearn.base import FunctionSampler
-from imblearn.under_sampling import RandomUnderSampler
-from imblearn.over_sampling import RandomOverSampler
-
-class RandomSampler(FunctionSampler):
-
-    def __init__(self, strategy="under_sampling",  accept_sparse=True, validate=True):
-        super().__init__()
-        self.funcs = {"over_sampling":RandomOverSampler().fit_resample,
-            "under_sampling":RandomUnderSampler().fit_resample}        
-        self.strategy = strategy
-        self.func = self.funcs[strategy]
-        self.accept_sparse = accept_sparse
-        self.validate = validate
-    
-
-# SCALER
-from sklearn.base import TransformerMixin, BaseEstimator
-from sklearn.preprocessing import RobustScaler, QuantileTransformer, PowerTransformer
-
-class Scaler(TransformerMixin, BaseEstimator):
-    
-    def __init__(self, strategy="robust"):
-        super().__init__()
-        self.scalers = {"robust":RobustScaler,
-            "power":PowerTransformer, "quantile":QuantileTransformer}
-        self.strategy = strategy
-        self.scaler = self.scalers[self.strategy]()
-        
-    def fit(self, X, y,):
-        self.scaler = self.scaler.fit(X,y)
-        return self#.scaler
-    
-    def transform(self, X):
-        return self.scaler.transform(X)
-    
-pipe = Pipeline([("sa", RandomSampler()),
-    ("sc", RobustScaler()),
-    ("lr", LogisticRegression())])
-
-space = {
-  "lr__C": hp.uniform("lr__C", 10**-3, 10),
-  "sa__strategy": hp.choice("sa__strategy",["under_sampling","over_sampling"]),
-  "sc":hp.choice("sc",[PowerTransformer(), RobustScaler(), QuantileTransformer()])}
-
-
-data = load_breast_cancer(as_frame=True)
-X_train, X_test, y_train, y_test = train_test_split(data["data"],data["target"], test_size=.4)
-
-def run_lr(params, pipe): 
-    #alpha = params["alpha"]
-    pipe.set_params(**params)
-    pipe.fit(X_train,y_train)
-    obj_metric = pipe.score(X_test, y_test)
-    return {"loss": -obj_metric, "status": STATUS_OK}
-
-
-spark_trials =  SparkTrials(parallelism=8)
-#spark_trials = Trials()
-with mlflow.start_run():
-    best_hyperparam = fmin(fn = partial(run_lr, pipe = pipe), 
-        space = space, algo = tpe.suggest,
-            max_evals = 16, trials = spark_trials)
-
-# COMMAND ----------
-
-
+# RESTRUCTURE THE PROJECT
+# CLEAN CODE
+# SEEMS LIKE KERAS FUN ON MONDAY:)

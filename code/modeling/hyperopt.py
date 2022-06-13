@@ -3,8 +3,11 @@
 
 # COMMAND ----------
 
+from hyperopt import SparkTrials, tpe
 hyperopt_config = {
     "max_evals":5,
+    "trials":SparkTrials(),
+    "algo":tpe.suggest,
     "seed":20220602}
 #
 ##
@@ -67,6 +70,6 @@ def _optimize_pipeline(X, y, pipe, space):
     space_optimized = fmin(
         fn=partial(_evaluate_pipeline,
             pipe=pipe, X=X, y=y, seed=seed),
-        trials=SparkTrials(parallelism=4),
+        trials=SparkTrials(parallelism=2),
         space=space, max_evals=max_evals, algo=tpe.suggest)
     return pipe.set_params(**space_eval(space, space_optimized))
