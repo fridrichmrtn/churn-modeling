@@ -225,8 +225,7 @@ models = {
 ### SETUP PIPELINES
 pipelines = {k:{"steps":Pipeline(preprocessing[v["preprocessing"]]["steps"]+v["model"]),
     "space":dict(preprocessing[v["preprocessing"]]["space"],**v["space"]),
-    "name":k}
-         for k, v in models.items()}
+    "name":k} for k, v in models.items()}
 
 def get_pipeline(name):
     return pipelines[name]
