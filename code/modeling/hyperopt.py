@@ -5,7 +5,7 @@
 
 from hyperopt import SparkTrials, tpe
 hyperopt_config = {
-    "max_evals":2,
+    "max_evals":25,
     "trials":SparkTrials,
     "algo":tpe.suggest,
     "seed":20220602}
@@ -30,16 +30,21 @@ def _train_test_dict(X, y, test_size, seed):
         "test":{"X":X_test, "y":y_test}}
 
 def _get_performance(model, X, y):
-    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+    from sklearn.metrics import accuracy_score, precision_score
+    from sklearn.metrics import recall_score, f1_score, roc_auc_score
     
     metrics = {m.__name__:m for m in\
         [accuracy_score, precision_score, recall_score, f1_score, roc_auc_score]}
     predicted = model.predict(X)
-    predicted_proba = model.predict_proba(X)[:,1]
+    
     results ={}
     for n,f in metrics.items():
         if "roc_auc" in n:
-            results[n] = f(y, predicted_proba)
+            if hasattr(model, "predict_proba"):
+                predicted_proba = model.predict_proba(X)[:,1]
+                results[n] = f(y, predicted_proba)
+            else:
+                results[n] = None
         else:
             results[n] = f(y, predicted)
     return results
