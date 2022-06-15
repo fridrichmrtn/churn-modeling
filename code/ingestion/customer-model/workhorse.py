@@ -37,7 +37,8 @@ def _impute_customer_model(customer_model):
     import re
     
     # zero imputation
-    zero_cols = [c for c in customer_model.columns for fc in ["_lag[0-9]+$", "_ma[0-9]+$", "_stddev$"]\
+    reg_pat = ["_lag[0-9]+$", "_ma[0-9]+$", "_stddev$"]
+    zero_cols = [c for c in customer_model.columns for fc in reg_pat\
         if re.search(fc, c) is not None]
     customer_model = customer_model.fillna(0, subset=zero_cols)
 
@@ -47,6 +48,13 @@ def _impute_customer_model(customer_model):
     max_expr = [f.max(c).alias(c) for c in max_cols]
     max_vals = customer_model.agg(*max_expr).toPandas().transpose().to_dict()[0]
     customer_model = customer_model.fillna(max_vals)
+    
+    # revenue imp
+    interactions = ["view", "cart", "purchase"]
+    operations = ["sum","mean", "min", "max"]
+    zero_cols = [f"{i}_revenue_{o}" for o in operations for i in interactions]
+    customer_model = customer_model.fillna(0, subset=zero_cols)
+    
     return customer_model
 
 def _construct_customer_model(dataset_name, events, split_time):
@@ -58,7 +66,7 @@ def _construct_customer_model(dataset_name, events, split_time):
     # BASE MODEL
     cust_base = get_base_model(cust_events)
     # PREFERENCE MODELS
-    cust_pref = get_pref_model(cust_events, dataset_name, refit=True)
+    cust_pref = get_pref_model(cust_events, dataset_name)
     # ALL TOGETHER
     customer_model = (cust_base.join(cust_pref, on=["user_id"])
         .join(cust_target, on=["user_id"]))    
@@ -79,7 +87,6 @@ def load_customer_model(dataset_name):
     return spark.table(f"churndb.{dataset_name}_customer_model")        
     
 def split_save_customer_model(dataset_name, week_steps=11, week_target=4, overwrite=True):
-    # construct temp cust models
     import pyspark.sql.functions as f
     from dateutil.relativedelta import relativedelta
     data_path = f"dbfs:/mnt/{dataset_name}/delta/"
@@ -99,3 +106,7 @@ def split_save_customer_model(dataset_name, week_steps=11, week_target=4, overwr
         customer_model = customer_model.withColumn("week_step", f.lit(week_step))
         customer_model.write.format("delta").mode("append")\
             .saveAsTable(f"churndb.{dataset_name}_customer_model")
+
+# COMMAND ----------
+
+

@@ -3,8 +3,10 @@
 ##
 ### CONFIG
 # NOTE: consider factoring out config params
+# JUST REMOVE THE DATASET SPECS
+# WITHIN THE FUNCS - TRY TO LOAD THE BEST PARAMS
 
-from hyperopt import hp
+
 preference_config = {
     "rees46":{
         
@@ -21,11 +23,44 @@ preference_config = {
                         "view":"d32fcd36afeb483795427893a2e842b1"},
                     # TBD
                     "models":{"purchase":"a4b7daa633574c518aadb33855d61c1f",
-                         "view":"a1c9a2b68f0d4c848258d5c5a2c5ee60"}},
+                         "view":"a1c9a2b68f0d4c848258d5c5a2c5ee60"}}},
         
         # utils
         #"reco_types":["purchase", "view"],
-        "seed":42,}}
+        #"seed":42,},
+    
+    "retailrocket":{
+        
+        # optimization conf
+        "hyperopt":{"space":{"rank": hp.randint("rank", 5, 50),
+                             "maxIter": hp.randint("maxIter", 5, 100),
+                             "regParam": hp.loguniform("regParam", -5, 3),
+                             "alpha": hp.uniform("alpha", 25, 350)},
+                    
+                    "max_evals":25,
+            
+                     # optimized runs
+                    "runs":{"purchase":"30d25143cd894ab58bac9f6b64873f66",
+                        "view":"cefeee809d1a4ebdbfe3528f89b0ab79"}}},
+                    # TBD
+                    #"models":{"purchase":"a4b7daa633574c518aadb33855d61c1f",
+                    #     "view":"a1c9a2b68f0d4c848258d5c5a2c5ee60"}},
+        
+        # utils
+        #"reco_types":["purchase", "view"],
+    "seed":42,}
+
+# COMMAND ----------
+
+from hyperopt import hp
+preference_config = {
+    "event_types":["view","purchase"],
+    "space":{"rank": hp.randint("rank", 5, 50),
+             "maxIter": hp.randint("maxIter", 5, 100),
+             "regParam": hp.loguniform("regParam", -5, 3),
+             "alpha": hp.uniform("alpha", 25, 350)},
+    "max_evals":25,
+    "seed":42}
 
 # COMMAND ----------
 
@@ -95,41 +130,44 @@ def _optimize_recom(events, dataset_name, event_type, seed):
     from functools import partial
     import mlflow
     
-    # setup
-    space = preference_config[dataset_name]["hyperopt"]["space"]
-    max_evals = preference_config[dataset_name]["hyperopt"]["max_evals"]
-    implicit_feedback = _get_imp_feed(events)
-    
     # optimization
-    exp_name = f"{dataset_name}_optimize_recom_{event_type}"
+    exp_name = f"{dataset_name}_{event_type}_reco_hyperopt"
     exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:    
         optimized_params = fmin(
             fn=partial(_eval_recom,
-                implicit_feedback=implicit_feedback, seed=seed),
-            max_evals=max_evals, space=space, algo=tpe.suggest)
+                implicit_feedback=_get_imp_feed(events), seed=seed),
+            max_evals=preference_config["max_evals"],
+            space=preference_config["space"], algo=tpe.suggest)
         return optimized_params
 
 #
 ##
 ### REFIT
-    
-def _fit_optimized_recom(events, event_type, dataset_name, run_id=None):
+
+def _get_hyperopt_run(dataset_name, event_type):
+    import mlflow
+    run_id = mlflow.search_runs(experiment_ids=_get_exp_id(
+        f"/Shared/dev/{dataset_name}_{event_type}_reco_hyperopt"),
+            search_all_experiments=True, order_by=["metrics.val_rmse ASC"],
+                max_results=1)["run_id"][0]
+    return run_id
+
+def _fit_recom(events, event_type, dataset_name, run_id=None):
     import mlflow
     
     if run_id is None:
-        run_id = preference_config[dataset_name]["hyperopt"]["runs"][event_type]
-    seed = preference_config[dataset_name]["seed"]
-    run_params = mlflow.get_run(run_id=run_id).data.params   
-    exp_name = f"{dataset_name}_refit_recom_{event_type}"
+        run_id = _get_hyperopt_run(dataset_name, event_type)
+        
+    run_params = mlflow.get_run(run_id=run_id).data.params  
+    exp_name = f"{dataset_name}_{event_type}_reco_refit"
     exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
-    
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:     
         mlflow.log_params(run_params)
         imp_feed = _get_imp_feed(events)
-        model = _set_recom(run_params, seed=seed).fit(imp_feed)
+        model = _set_recom(run_params, seed=preference_config["seed"]).fit(imp_feed)
         mlflow.spark.log_model(model, exp_name, registered_model_name=exp_name)
         return model
       
@@ -143,45 +181,37 @@ def _get_user_factors(recom_model, event_type):
     dims = range(recom_model.rank)
     user_factors = (recom_model.userFactors
         .select(f.col("id").alias("user_id"),
-            *[f.col("features").getItem(d).alias(event_type+"_latent_factor"+str(d))
+            *[f.col("features").getItem(d).alias(f"{event_type}_latent_factor{d}")
                 for d in dims]))
     return user_factors
 
 #
 ##
-### PRE-RUN THE OPTIMIZATION
+### PRE-RUN THE OPTIMIZATION ON FULL DATA
 
 def _prerun_optimize_recom(dataset_name):
     import pyspark.sql.functions as f
     
-    seed = preference_config[dataset_name]["seed"]
-    
-    events = spark.read.format("delta").load(f"dbfs:/mnt/{dataset_name}/delta/events")#.sample(fraction=.001)
-    transactions = events.where(f.col("event_type_name")=="purchase")
-    _ = _optimize_recom(transactions, dataset_name, "purchase", seed)
-    views = events.where(f.col("event_type_name")=="view")
-    _ = _optimize_recom(views, dataset_name, "views", seed)
+    data_path = f"dbfs:/mnt/{dataset_name}/delta/events"
+    events = spark.read.format("delta").load(data_path)
+    for event_type in  preference_config["event_types"]:
+        _ = _optimize_recom(
+            events.where(f.col("event_type_name")==event_type),
+            dataset_name, event_type, preference_config["seed"])
     
 #
 ##
 ### GET PREFERENCE MODEL
 
-def get_pref_model(events, dataset_name, refit=True):
+def get_pref_model(events, dataset_name):
     import pyspark.sql.functions as f
     import mlflow
     
     dfs = []
-    if refit:
-        for k, v in  preference_config[dataset_name]["hyperopt"]["runs"].items():
-            recom = _fit_optimized_recom(events.where(f.col("event_type_name")==k),
-                k, dataset_name, v)
-            dfs += [_get_user_factors(recom, k)]
-    else:
-        for k, v in  preference_config[dataset_name]["hyperopt"]["models"].items():
-            recom = mlflow.spark.load_model(f"models:/{dataset_name}_refit_recom_{k}/None")\
-                .stages[0]
-            dfs += [_get_user_factors(recom, k)]
-    # crude solution for now
+    for event_type in  preference_config["event_types"]:
+        recom = _fit_recom(events.where(f.col("event_type_name")==event_type),
+            event_type, dataset_name)
+        dfs += [_get_user_factors(recom, event_type)]
     return dfs[0].join(dfs[1], on=["user_id"]) 
 
 #
@@ -232,3 +262,11 @@ def _plot_hyperopt(parent_run_id, labels):
 #    ("metrics.train_rmse","training RMSE"), ("metrics.val_rmse","validation RMSE")])
 
 #_plot_hyperopt(parent_run_id, labels)
+
+# COMMAND ----------
+
+#_prerun_optimize_recom("retailrocket")
+
+# COMMAND ----------
+
+

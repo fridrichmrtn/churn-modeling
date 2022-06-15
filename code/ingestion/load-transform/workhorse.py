@@ -56,18 +56,131 @@ def _rees46_filter(events):
          .select("user_id"))
     return events.join(user_filter, on=["user_id"], how="inner")
 
-
 # COMMAND ----------
 
 
 #
 ##
-### LOADING RETAIL ROCKET
+### RETAIL ROCKET
+
+def _retailrocket_load(data_path):
+    import pyspark.sql.functions as f
+    from pyspark.sql.types import StructType, IntegerType, StringType, LongType 
+
+    # load raw data
+    events_schema = StructType()\
+        .add("timestamp", LongType(), False)\
+        .add("visitorid", IntegerType(), False)\
+        .add("event", StringType(), False)\
+        .add("itemid", IntegerType(), False)\
+        .add("transactionid", IntegerType(), True)
+
+    properties_schema = StructType()\
+        .add("timestamp", LongType(), False)\
+        .add("itemid", IntegerType(), False)\
+        .add("property", StringType(), True)\
+        .add("value", StringType(), True)
+
+    events = spark.read.csv(data_path+"events.csv",
+        schema=events_schema, header=True).repartition(200)
+    item_properties = spark.read.csv(data_path+"item_properties*",
+        schema=properties_schema, header=True)
+    return {"events":events, "item_properties":item_properties}
+
+# FIX
+def _retailrocket_fix(events_dict):
+    import numpy as np
+    import pyspark.sql.functions as f
+    from pyspark.sql.window import Window
+    events = events_dict["events"]
+    item_properties = events_dict["item_properties"]
+    del events_dict
+
+    max_timestamp =  int(np.max([item_properties.select("timestamp").agg(f.max(f.col("timestamp")).alias("mts")).collect()[0]["mts"],
+        events.select("timestamp").agg(f.max(f.col("timestamp")).alias("mts")).collect()[0]["mts"]]))
+
+    # item-prop transforms
+    item_properties = item_properties.where((f.col("property").isin(["categoryid","790"])))\
+        .join(events.select("itemid").dropDuplicates(), on=["itemid"], how="inner")
+    item_properties = item_properties.replace({"categoryid":"categoryid", "790":"price"}, subset=["property"])\
+        .withColumn("value", f.regexp_replace("value", "n", "").cast("float"))
+
+    w = Window.partitionBy(["itemid","property"]).orderBy("timestamp")
+    item_properties = item_properties\
+        .withColumn("lag_value", f.lag(f.col("value")).over(w))\
+        .where(f.col("lag_value").isNull()|(f.col("lag_value")!=f.col("value")))\
+        .withColumn("lead_timestamp", f.lead(f.col("timestamp")).over(w))\
+        .na.fill(value=max_timestamp, subset=["lead_timestamp"])\
+        .select(f.col("timestamp").alias("valid_start"), f.col("lead_timestamp").alias("valid_end"),
+            f.col("itemid"), f.col("property"), f.col("value"))\
+        .persist()
+    
+    # events
+    events = events.join(item_properties.select("itemid").dropDuplicates(),
+        on=["itemid"], how="inner")
+    events = events.join(item_properties, on=["itemid"], how="inner").\
+        where((f.col("timestamp")>=f.col("valid_start")) & (f.col("timestamp")<f.col("valid_end")))
+    events = events.groupBy(["timestamp", "itemid", "visitorid", "event", "transactionid"])\
+        .pivot("property").agg(f.first("value"))\
+        .withColumn("categoryid", f.col("categoryid").cast("int"))\
+        .withColumn("timestamp", f.to_timestamp(f.col("timestamp").cast("Long")/1000-7*60*60)).persist()
+
+    # sessionid
+    w = Window().partitionBy("visitorid").orderBy("timestamp")
+    events = (events.withColumn("row_num", f.row_number().over(w))
+        .withColumn("time_diff", (f.col("timestamp")>f.lag("timestamp",1).over(w)
+            +f.expr("INTERVAL 30 MINUTE"))|f.lag("timestamp",1).over(w).isNull())
+        .withColumn("vis_diff", f.lead("visitorid",1).over(w).isNull())
+        .withColumn("is_start", (f.col("timestamp")>f.lag("timestamp",1).over(w)
+            +f.expr("INTERVAL 30 MINUTE"))|f.lag("timestamp",1).over(w).isNull()
+                |f.lead("visitorid",1).over(w).isNull())
+        .withColumn("is_end", f.lead("is_start",1).over(w)
+            |f.lead("is_start",1).over(w).isNull())
+        .withColumn("is_of_interest", f.col("is_start")|f.col("is_end")))
+
+    gw = Window().partitionBy("visitorid").orderBy("row_num")
+    lw = Window.orderBy(f.lit("m"))
+    groups = (events.filter(f.col("is_start"))
+        .withColumn("row_end", f.coalesce(f.lead("row_num",1).over(gw), f.col("row_num")))
+        .withColumn("diff", f.col("row_end")-f.col("row_num")).filter(f.col("is_start"))
+        .withColumn("sessionid", f.row_number().over(lw))
+        .select("visitorid", "sessionid", f.col("row_num").alias("row_start"), "row_end"))
+
+    events = (events.alias("e").join(groups.alias("g"),
+        (f.col("e.visitorid")==f.col("g.visitorid")) & 
+        (f.col("e.row_num")>=f.col("g.row_start")) & 
+        (f.col("e.row_num")<f.col("g.row_end")),how="inner")
+            .select(
+                f.col("e.visitorid").alias("user_id"), f.col("e.timestamp").alias("event_time"),
+                f.col("g.sessionid").alias("user_session_id"), f.col("e.event").alias("event_type_name"),
+                f.col("e.itemid").alias("product_id"), f.col("e.categoryid").alias("category_id"),
+                f.col("e.price")))
+    
+    remap_dict = {"addtocart":"cart", "view":"view", "transaction":"purchase"}
+    events = (events.replace(to_replace=remap_dict, subset=["event_type_name"])
+        .withColumn("view", (f.col("event_type_name")=="view").cast("int"))
+        .withColumn("cart", (f.col("event_type_name")=="cart").cast("int"))
+        .withColumn("purchase", (f.col("event_type_name")=="purchase").cast("int"))
+        .withColumn("revenue", f.col("purchase")*f.col("price")))
+    return events
+
+def _retailrocket_filter(events):
+    import pyspark.sql.functions as f
+    
+    user_filter = (events.where(f.col("event_type_name")=="purchase")
+         .groupBy("user_id")
+             .agg(f.countDistinct(f.col("user_session_id")).alias("purchase_count"))
+         .where(f.col("purchase_count")>=2)
+         .select("user_id"))
+    return events.join(user_filter, on=["user_id"], how="inner")
+
+# COMMAND ----------
 
 
-#
-##
-### LOADING OLIST
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
@@ -75,7 +188,9 @@ def _rees46_filter(events):
 ##
 ### CONSTRUCT EVENTS
 
-load_transform_config = {"rees46":{"load":_rees46_load, "fix":_rees46_fix, "filter":_rees46_filter, "data":"dbfs:/mnt/rees46/"}}
+load_transform_config = {
+    "rees46":{"load":_rees46_load, "fix":_rees46_fix, "filter":_rees46_filter, "data":"dbfs:/mnt/rees46/"},
+    "retailrocket":{"load":_retailrocket_load, "fix":_retailrocket_fix, "filter":_retailrocket_filter, "data":"dbfs:/mnt/retailrocket/"}}
 
 def construct_events(dataset_name):
     # unpack
@@ -97,7 +212,7 @@ def construct_events(dataset_name):
 def save_events(events, dataset_name):
     # do the repartitioning
     data_path = load_transform_config[dataset_name]["data"]
-    data_path += "concatenated/events"
+    data_path += "delta/events"
     (events
          .write.format("delta")#.partitionBy("user_id")
          .mode("overwrite").option("overwriteSchema", "true")
