@@ -69,7 +69,7 @@ class MLPClassifier(KerasClassifier):
 
     def __init__(self, n_layers=1, layer_size=8,
         activation="relu", optimizer="adam",
-        optimizer__learning_rate=10**-3,
+        #optimizer__learning_rate=10**-3,
         epochs=50, verbose=0, **kwargs,):
             super().__init__(**kwargs)
             self.n_layers = n_layers
@@ -169,10 +169,10 @@ models = {
           {"model":
                [("mlp", MLPClassifier())],
            "space":
-               {"mlp__batch_size":hp.randint("mlp__batch_size",2**3,2**8),
-                "mlp__epochs":hp.randint("mlp__epochs",5*10**1,5*10**2),
-                "mlp__n_layers":hp.randint("mlp__n_layers",1,5),
-                "mlp__layer_size":hp.randint("mlp__layer_size",2**2,2**7),
+               {"mlp__batch_size":hp.randint("mlp__batch_size",2**3,2**7),
+                "mlp__epochs":hp.randint("mlp__epochs",10**2,10**3),
+                "mlp__n_layers":hp.randint("mlp__n_layers",1,10),
+                "mlp__layer_size":hp.randint("mlp__layer_size",2**2,2**8),
                 "mlp__activation":hp.choice("mlp__activation",
                     ["tanh", "sigmoid", "relu", keras.layers.LeakyReLU()]),
                 "mlp__optimizer__learning_rate":hp.uniform("mlp__optimizer__learning_rate", 10**-5,10**-3),
