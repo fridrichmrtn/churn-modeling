@@ -105,17 +105,15 @@ def glue_pipeline(pipe, data, refit=True):
 # COMMAND ----------
 
 for week_step in range(2, 3):
-    data = _get_data("rees46", week_step)
-    for pipe_name in ["dt"]:
+    data = _get_data("retailrocket", week_step)
+    meh = ["lr", "svm_lin", "svm_rbf", "mlp", "dt", "rf", "hgb"]
+    for pipe_name in meh:
         pipe = pipelines[pipe_name]
         pipe = _optimize_pipeline(data["train"], pipe)
         pipe = _fit_calibrated_pipeline(data["train"], pipe)
 
 # COMMAND ----------
 
-# TODAY
-# DO ELT FOR THE RR DATA - HOPEFULLY JUST REFACTOR WHAT IS DONE 
-
-# BACKLOG
-# CHANGE TREE ENSEMBLES TO LGBM
-# CONSIDER REORGANIZING THE CODE
+# MODELING
+# ENCAPSULATE EVALUATE PIPE FROM GLUE - NEXT
+# RE-RUN FULL PIPELINES ON RR DATASET - NEXT
