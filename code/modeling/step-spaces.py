@@ -138,6 +138,7 @@ from sklearn.svm import LinearSVC
 from sklearn.kernel_approximation import Nystroem
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
+from lightgbm import LGBMClassifier
 
 models = {
     "lr":
@@ -218,7 +219,8 @@ models = {
                 "hgb__min_samples_leaf":hp.randint("hgb__min_samples_leaf",1,100),
                 "hgb__l2_regularization":hp.uniform("hgb__l2_regularization",0,10**2),                
         },
-          "preprocessing":"tree"}}
+          "preprocessing":"tree"}
+}
 
 #
 ##

@@ -22,7 +22,7 @@ dataset_name = "retailrocket"
 events = construct_events(dataset_name)
 save_events(events, dataset_name)
 # CUSTOMER MODEL
-split_save_customer_model(dataset_name, week_steps=12,
+split_save_customer_model(dataset_name, week_steps=11,
     week_target=4, overwrite=True)
 
 # COMMAND ----------
@@ -38,5 +38,5 @@ events = construct_events(dataset_name)
 save_events(events, dataset_name)
 
 # CUSTOMER MODEL
-split_save_customer_model(dataset_name, week_steps=11,
+split_save_customer_model(dataset_name, week_steps=21,
     week_target=4, overwrite=True)

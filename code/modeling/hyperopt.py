@@ -49,11 +49,10 @@ def _get_performance(model, X, y):
             results[n] = f(y, predicted)
     return results
 
-def _evaluate_pipeline(params, pipe, X, y, seed):
+def _evaluate_hyperopt(params, pipe, X, y, seed):
     from hyperopt import STATUS_OK
     from sklearn.model_selection import train_test_split
-    #import mlflow
-    
+  
     data_dict = _train_test_dict(X, y, .4, seed)
     pipe.set_params(**params)
     pipe.fit(data_dict["train"]["X"], data_dict["train"]["y"])
@@ -73,7 +72,7 @@ def _optimize_pipeline(data, pipe):
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:
         space_optimized = fmin(
-            fn=partial(_evaluate_pipeline,
+            fn=partial(_evaluate_hyperopt,
                 X=data["X"], y=data["y"], pipe=pipe["steps"],\
                     seed=hyperopt_config["seed"]),
             space=pipe["space"], max_evals=hyperopt_config["max_evals"], 
