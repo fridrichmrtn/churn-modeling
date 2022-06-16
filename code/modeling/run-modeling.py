@@ -1,5 +1,5 @@
 # Databricks notebook source
-# MAGIC %run ./workhorse
+# MAGIC %run ./pipelines/workhorse
 
 # COMMAND ----------
 
