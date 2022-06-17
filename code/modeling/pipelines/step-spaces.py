@@ -196,7 +196,7 @@ models = {
           {"model":
                [("rf", RandomForestClassifier())],
            "space":
-               {"rf__n_estimators":hp.randint("rf__n_estimators",25,1000),
+               {"rf__n_estimators":hp.randint("rf__n_estimators",25,500),
                 "rf__max_features":hp.uniform("rf__max_features",0.1,.7),
                 "rf__max_depth":hp.randint("rf__max_depth",2,30),
                 "rf__min_samples_split":hp.randint("rf__min_samples_split",10**1,2*10**2),
@@ -213,7 +213,7 @@ models = {
            "space":
                {
                 "hgb__learning_rate":hp.uniform("hgb__learning_rate",0.01,.15),
-                "hgb__max_iter":hp.randint("hgb__max_iter",25,1000),
+                "hgb__max_iter":hp.randint("hgb__max_iter",25,500),
                 "hgb__max_leaf_nodes":hp.randint("hgb__max_leaf_nodes",5**2,5**3),
                 "hgb__max_depth":hp.randint("hgb__max_depth",2,30),
                 "hgb__min_samples_leaf":hp.randint("hgb__min_samples_leaf",1,100),
