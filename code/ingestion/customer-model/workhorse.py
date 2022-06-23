@@ -106,7 +106,3 @@ def split_save_customer_model(dataset_name, week_steps=11, week_target=4, overwr
         customer_model = customer_model.withColumn("week_step", f.lit(week_step))
         customer_model.write.format("delta").mode("append")\
             .saveAsTable(f"churndb.{dataset_name}_customer_model")
-
-# COMMAND ----------
-
-

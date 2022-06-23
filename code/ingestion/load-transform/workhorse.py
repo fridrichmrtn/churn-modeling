@@ -92,12 +92,16 @@ def _retailrocket_fix(events_dict):
     import numpy as np
     import pyspark.sql.functions as f
     from pyspark.sql.window import Window
+    import pyspark.pandas as ps
+    
     events = events_dict["events"]
     item_properties = events_dict["item_properties"]
     del events_dict
 
-    max_timestamp =  int(np.max([item_properties.select("timestamp").agg(f.max(f.col("timestamp")).alias("mts")).collect()[0]["mts"],
-        events.select("timestamp").agg(f.max(f.col("timestamp")).alias("mts")).collect()[0]["mts"]]))
+    max_timestamp =  int(np.max([item_properties.select("timestamp")\
+            .agg(f.max(f.col("timestamp")).alias("mts")).collect()[0]["mts"],
+        events.select("timestamp")\
+             .agg(f.max(f.col("timestamp")).alias("mts")).collect()[0]["mts"]]))
 
     # item-prop transforms
     item_properties = item_properties.where((f.col("property").isin(["categoryid","790"])))\
@@ -112,7 +116,8 @@ def _retailrocket_fix(events_dict):
         .withColumn("lead_timestamp", f.lead(f.col("timestamp")).over(w))\
         .na.fill(value=max_timestamp, subset=["lead_timestamp"])\
         .select(f.col("timestamp").alias("valid_start"), f.col("lead_timestamp").alias("valid_end"),
-            f.col("itemid"), f.col("property"), f.col("value"))\
+            f.col("itemid"), f.col("property"), f.col("value"),
+                (f.col("lead_timestamp")-f.col("timestamp")).alias("time_valid"))\
         .persist()
     
     # events
@@ -124,6 +129,24 @@ def _retailrocket_fix(events_dict):
         .pivot("property").agg(f.first("value"))\
         .withColumn("categoryid", f.col("categoryid").cast("int"))\
         .withColumn("timestamp", f.to_timestamp(f.col("timestamp").cast("Long")/1000-7*60*60)).persist()
+    
+    # fillna - not very nice
+    top_item_properties = ps.DataFrame(item_properties)\
+        .groupby(["itemid","property","value"],
+            as_index=False).time_valid.sum().sort_values("time_valid")\
+                .groupby(["itemid","property"]).tail(1)
+    top_item_properties = top_item_properties.pivot_table(index=["itemid"],
+        columns="property", values="value").reset_index()
+    events = ps.DataFrame(events)
+    events = events.merge(top_item_properties, on="itemid")
+    events.loc[events.categoryid_x.isna(),
+        ["categoryid_x"]] = events["categoryid_y"]
+    events.loc[events.price_x.isna(),
+        ["price_x"]] = events["price_y"]
+    events.rename({"categoryid_x":"categoryid", "price_x":"price"},
+        axis=1, inplace=True)
+    events = events.loc[:,["timestamp","visitorid","itemid",
+        "event", "categoryid", "price"]].to_spark()
 
     # sessionid
     w = Window().partitionBy("visitorid").orderBy("timestamp")
@@ -154,7 +177,7 @@ def _retailrocket_fix(events_dict):
                 f.col("e.visitorid").alias("user_id"), f.col("e.timestamp").alias("event_time"),
                 f.col("g.sessionid").alias("user_session_id"), f.col("e.event").alias("event_type_name"),
                 f.col("e.itemid").alias("product_id"), f.col("e.categoryid").alias("category_id"),
-                f.col("e.price")))
+                f.col("e.price").cast("double")))
     
     remap_dict = {"addtocart":"cart", "view":"view", "transaction":"purchase"}
     events = (events.replace(to_replace=remap_dict, subset=["event_type_name"])
@@ -176,14 +199,6 @@ def _retailrocket_filter(events):
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
 #
 ##
 ### CONSTRUCT EVENTS
@@ -192,17 +207,19 @@ load_transform_config = {
     "rees46":{"load":_rees46_load, "fix":_rees46_fix, "filter":_rees46_filter, "data":"dbfs:/mnt/rees46/"},
     "retailrocket":{"load":_retailrocket_load, "fix":_retailrocket_fix, "filter":_retailrocket_filter, "data":"dbfs:/mnt/retailrocket/"}}
 
+
+    
 def construct_events(dataset_name):
     # unpack
     data_path = load_transform_config[dataset_name]["data"]+"raw/"
     load = load_transform_config[dataset_name]["load"]
     fix = load_transform_config[dataset_name]["fix"]
-    filter = load_transform_config[dataset_name]["filter"]
+    filt = load_transform_config[dataset_name]["filter"]
     
     # load, fix, and filter
     events = load(data_path)
     events = fix(events)
-    events = filter(events)
+    events = filt(events)
     return events
 
 #
@@ -213,7 +230,8 @@ def save_events(events, dataset_name):
     # do the repartitioning
     data_path = load_transform_config[dataset_name]["data"]
     data_path += "delta/events"
+    #_rm_dir(data_path)
     (events
          .write.format("delta")#.partitionBy("user_id")
-         .mode("overwrite").option("overwriteSchema", "true")
+         .mode("overwrite")#.option("overwriteSchema", "true")
          .save(data_path))
