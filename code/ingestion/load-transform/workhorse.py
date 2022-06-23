@@ -177,7 +177,7 @@ def _retailrocket_fix(events_dict):
                 f.col("e.visitorid").alias("user_id"), f.col("e.timestamp").alias("event_time"),
                 f.col("g.sessionid").alias("user_session_id"), f.col("e.event").alias("event_type_name"),
                 f.col("e.itemid").alias("product_id"), f.col("e.categoryid").alias("category_id"),
-                f.col("e.price")))
+                f.col("e.price").cast("double")))
     
     remap_dict = {"addtocart":"cart", "view":"view", "transaction":"purchase"}
     events = (events.replace(to_replace=remap_dict, subset=["event_type_name"])
@@ -207,6 +207,8 @@ load_transform_config = {
     "rees46":{"load":_rees46_load, "fix":_rees46_fix, "filter":_rees46_filter, "data":"dbfs:/mnt/rees46/"},
     "retailrocket":{"load":_retailrocket_load, "fix":_retailrocket_fix, "filter":_retailrocket_filter, "data":"dbfs:/mnt/retailrocket/"}}
 
+
+    
 def construct_events(dataset_name):
     # unpack
     data_path = load_transform_config[dataset_name]["data"]+"raw/"
@@ -228,7 +230,8 @@ def save_events(events, dataset_name):
     # do the repartitioning
     data_path = load_transform_config[dataset_name]["data"]
     data_path += "delta/events"
+    #_rm_dir(data_path)
     (events
          .write.format("delta")#.partitionBy("user_id")
-         .mode("overwrite").option("overwriteSchema", "true")
+         .mode("overwrite")#.option("overwriteSchema", "true")
          .save(data_path))

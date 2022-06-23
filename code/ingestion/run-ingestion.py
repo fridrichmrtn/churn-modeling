@@ -12,6 +12,14 @@
 
 # COMMAND ----------
 
+dataset_name = "retailrocket"
+
+# LOAD TRANSFORM
+events = construct_events(dataset_name)
+save_events(events, dataset_name)
+
+# COMMAND ----------
+
 #
 ##
 ### RETAIL ROCKET
@@ -24,6 +32,10 @@ save_events(events, dataset_name)
 # CUSTOMER MODEL
 split_save_customer_model(dataset_name, week_steps=11,
     week_target=4, overwrite=True)
+
+# COMMAND ----------
+
+events.toPandas().isnull().sum()
 
 # COMMAND ----------
 
