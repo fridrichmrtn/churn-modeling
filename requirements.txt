@@ -1,0 +1,9 @@
+wheel
+numpy
+scipy
+pandas
+matplotlib
+seaborn
+pyspark
+pyarrow
+jupyter
