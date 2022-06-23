@@ -25,18 +25,14 @@
 # MAGIC #### Plotting
 # MAGIC 
 # MAGIC 
-# MAGIC AVGCP VS TIME
-# MAGIC AVGCP DISTRIBUTION
-# MAGIC vs BOTH DATASET
+# MAGIC * AVGCP VS TIME
+# MAGIC * AVGCP DISTRIBUTION
+# MAGIC * vs BOTH DATASETS
 # MAGIC 
 # MAGIC #### Sensitivity analysis
 # MAGIC 
-# MAGIC AVGCP VS mu0, sigma
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC $$n_t$$
+# MAGIC  * AVGCP VS mu0, sigma
+# MAGIC  * vs BOTH DATASETS
 
 # COMMAND ----------
 
@@ -187,14 +183,7 @@ product_diffs = RandomRDDs.normalVectorRDD(sc, numRows=n_products, numCols=n_dat
 product_base = ps.concat([ps.DataFrame(product_base),ps.DataFrame(product_diffs)], axis=1)
 product_base["product_id"] = products.product_id
 margins = ps.melt(product_base, id_vars=["product_id"], value_name="margin", var_name="date")
-
-# COMMAND ----------
-
 margins[margins.product_id==38900088].sort_values("date").margin.cumsum()
-
-# COMMAND ----------
-
-margins.where()
 
 # COMMAND ----------
 
@@ -217,7 +206,36 @@ product_diffs["product_baseline"] = product_base["product_baseline"]
 
 # COMMAND ----------
 
-# MAGIC %md
+import pyspark.sql.functions as f
+import pyspark.pandas as ps
+
+dataset_name = "retailrocket"
+data_path = f"dbfs:/mnt/{dataset_name}/delta/events"
+events = spark.read.format("delta").load(data_path)
+
+
+
+purchases = events.where(f.col("event_type_name")=="purchase")\
+    .withColumn("date", f.to_date("event_time"))\
+    .groupBy(["user_id", "date"])\
+        .agg(f.sum("revenue").alias("revenue"))
+
+purchases.count()
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+dates = purchases.select("date").distinct()
+users = purchases.select("user_id").distinct()
+revenue = users.crossJoin(dates).join(purchases, on=["user_id", "date"], how="left")\
+    .fillna(0, subset=["revenue"]).toPandas()
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
