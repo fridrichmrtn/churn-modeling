@@ -201,13 +201,54 @@ def _retailrocket_filter(events):
 
 #
 ##
+### SIMULATE PROFIT
+
+def simulate_profit(events, loc, scale, seed=42):
+    import pyspark.pandas as ps
+    ps.set_option('compute.ops_on_diff_frames', True)
+    import numpy as np
+    
+    events = events.to_pandas_on_spark()
+    events["date"] = events.event_time.dt.date
+    products = events[events.purchase==1].product_id.unique()
+    dates = events.date.unique().sort_values().to_numpy()
+    #print(dates)
+    n_products = len(products)
+    n_days = len(dates)    
+    scale_diff = scale/np.sqrt(n_days)
+    
+    # simulate margins
+    np.random.seed(seed)
+    product_baseline = np.random.normal(loc=loc,scale=scale,size=(n_products,1))
+    product_diff = np.random.normal(loc=0, scale=scale_diff, size=(n_products, n_days-1))
+    margins = np.cumsum(np.concatenate([product_baseline, product_diff], axis=1), axis=1)
+    margins = ps.DataFrame(margins, columns=dates)
+    margins["product_id"] = products
+    margins = ps.melt(margins, id_vars=["product_id"],
+        var_name="date", value_name="margin")
+    # calculate profit
+    events = events.merge(margins, on=["product_id","date"], how="left")
+    events["profit"] = events.purchase*events.price*events.margin
+    events = events.drop(columns=["margin", "date"])
+    return events.to_spark()
+
+
+# COMMAND ----------
+
+#
+##
 ### CONSTRUCT EVENTS
+from functools import partial
 
 load_transform_config = {
-    "rees46":{"load":_rees46_load, "fix":_rees46_fix, "filter":_rees46_filter, "data":"dbfs:/mnt/rees46/"},
-    "retailrocket":{"load":_retailrocket_load, "fix":_retailrocket_fix, "filter":_retailrocket_filter, "data":"dbfs:/mnt/retailrocket/"}}
-
-
+    "rees46":
+        {"load":_rees46_load, "fix":_rees46_fix, "filter":_rees46_filter,
+         "profit":partial(simulate_profit, loc=0.1, scale=0.05, seed=0),
+         "data":"dbfs:/mnt/rees46/"},
+    "retailrocket":
+        {"load":_retailrocket_load, "fix":_retailrocket_fix, "filter":_retailrocket_filter,
+         "profit":partial(simulate_profit, loc=0.1, scale=0.05, seed=0),
+         "data":"dbfs:/mnt/retailrocket/"}}
     
 def construct_events(dataset_name):
     # unpack
@@ -215,11 +256,13 @@ def construct_events(dataset_name):
     load = load_transform_config[dataset_name]["load"]
     fix = load_transform_config[dataset_name]["fix"]
     filt = load_transform_config[dataset_name]["filter"]
+    prof = load_transform_config[dataset_name]["profit"]
     
     # load, fix, and filter
     events = load(data_path)
     events = fix(events)
     events = filt(events)
+    events = prof(events)
     return events
 
 #
@@ -235,3 +278,9 @@ def save_events(events, dataset_name):
          .write.format("delta")#.partitionBy("user_id")
          .mode("overwrite")#.option("overwriteSchema", "true")
          .save(data_path))
+
+# COMMAND ----------
+
+# DO THE DEV ON RETAILROCKET
+events = construct_events("rees46")
+events.show()
