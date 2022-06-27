@@ -201,7 +201,7 @@ def _retailrocket_filter(events):
 
 #
 ##
-### SIMULATE PROFIT
+### PROFIT
 
 def simulate_profit(events, loc, scale, seed=42):
     import pyspark.pandas as ps
@@ -238,6 +238,7 @@ def simulate_profit(events, loc, scale, seed=42):
 #
 ##
 ### CONSTRUCT EVENTS
+
 from functools import partial
 
 load_transform_config = {
@@ -252,17 +253,12 @@ load_transform_config = {
     
 def construct_events(dataset_name):
     # unpack
-    data_path = load_transform_config[dataset_name]["data"]+"raw/"
-    load = load_transform_config[dataset_name]["load"]
-    fix = load_transform_config[dataset_name]["fix"]
-    filt = load_transform_config[dataset_name]["filter"]
-    prof = load_transform_config[dataset_name]["profit"]
-    
+    ltc = load_transform_config[dataset_name]
     # load, fix, and filter
-    events = load(data_path)
-    events = fix(events)
-    events = filt(events)
-    events = prof(events)
+    events = ltc["load"](ltc["data"]+"raw/")
+    events = ltc["fix"](events)
+    events = ltc["filter"](events)
+    events = ltc["profit"](events)
     return events
 
 #
@@ -278,9 +274,3 @@ def save_events(events, dataset_name):
          .write.format("delta")#.partitionBy("user_id")
          .mode("overwrite")#.option("overwriteSchema", "true")
          .save(data_path))
-
-# COMMAND ----------
-
-# DO THE DEV ON RETAILROCKET
-events = construct_events("rees46")
-events.show()

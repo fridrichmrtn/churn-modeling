@@ -72,6 +72,7 @@ def _get_sessions(events):
             f.sum((f.col("view")*f.col("price"))).alias("view_revenue"),
             f.sum((f.col("cart")*f.col("price"))).alias("cart_revenue"),
             f.sum((f.col("purchase")*f.col("price"))).alias("purchase_revenue"),
+        
             # time to revenue
             ((f.max("event_time")-f.min("event_time")).cast("long")/\
                 (60*f.sum("price"))).alias("time_to_click_revenue"),
@@ -81,6 +82,8 @@ def _get_sessions(events):
                 (60* f.sum((f.col("cart")*f.col("price"))))).alias("time_to_cart_revenue"),
             ((f.max("event_time")-f.min("event_time")).cast("long")/\
                 (60* f.sum((f.col("purchase")*f.col("price"))))).alias("time_to_purchase_revenue"))
+        # profit
+           #f.sum((f.col("purchase")*f.col("profit"))).alias("purchases_profit"))
     
     # windowing
     ws = Window().partitionBy("user_id").orderBy("start")
@@ -101,31 +104,37 @@ def _get_sessions(events):
 ##
 ### BASE FEATURES
 
-def get_base_model(events):
+def get_base_model(events, week_target):
     from functools import partial
     import pyspark.sql.functions as f
     
     sessions = _get_sessions(events)
+    n_weeks = sessions.agg((f.datediff(f.max("start"),
+            f.min("start"))/7).alias("dr"))\
+        .collect()[0]["dr"]
+    
     # statistics
     excl_cols = set(["user_session_id", "user_id", "start", "end", "start_monthgroup"])
     stat_cols = [c for c in sessions.columns if c not in excl_cols]
     stat_funcs = [f.mean, f.sum, f.min, f.max, f.stddev_samp, _variation] # extend?
     stat_exp = [f(c).alias(c+"_"+list(filter(None,str(f.__name__).split("_")))[0])                
         for f in stat_funcs for c in stat_cols]
-    
     # hand-crafted interactions, possibly extend
     int_exp = [(f.max("session_number")/f.max("session_recency")).alias("session_count_daily_ratio"),
         (f.sum("click_count")/f.max("session_number")).alias("click_count_ratio"),
-        (f.sum("purchase_count")/f.max("session_number")).alias("transaction_count_ratio")]
+        (f.sum("purchase_count")/f.max("session_number")).alias("transaction_count_ratio"),
+        (week_target*f.sum((f.col("purchase")*f.col("profit")))/n_weeks).alias("cumulative_average_profit")]
+    
     agg_exp = stat_exp + int_exp
     base_features = sessions.groupBy("user_id").agg(*agg_exp)
     # lags
     user_month = (sessions.select("user_id").distinct()
         .crossJoin(sessions.select("start_monthgroup").distinct()))
     user_month_groups = sessions.groupBy("user_id", "start_monthgroup").agg(
-        (f.count("user_session_id")).alias("session_count"),
-        (f.sum("haspurchase")).alias("purchase_count"),
-        (f.sum("purchase_revenue")).alias("purchase_revenue"))
+        f.count("user_session_id").alias("session_count"),
+        f.sum("haspurchase").alias("purchase_count"),
+        f.sum("purchase_revenue").alias("purchase_revenue"))
+        #f.sum("purchase_profit").alias("purchase_profit"))
     user_month_groups = user_month.join(user_month_groups,
         on=["user_id", "start_monthgroup"], how="left")
     user_month_lags = _add_lags(user_month_groups,
@@ -137,7 +146,3 @@ def get_base_model(events):
                            .select(*lag_cols))#.fillna(0)
     # push it out
     return base_features.join(user_month_lags, on=["user_id"], how="inner")
-
-# COMMAND ----------
-
-
