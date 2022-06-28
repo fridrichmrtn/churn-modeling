@@ -120,7 +120,6 @@ def get_base_model(events, week_target):
     int_exp = [(f.max("session_number")/f.max("session_recency")).alias("session_count_daily_ratio"),
         (f.sum("click_count")/f.max("session_number")).alias("click_count_ratio"),
         (f.sum("purchase_count")/f.max("session_number")).alias("transaction_count_ratio")]
-    
     agg_exp = stat_exp + int_exp
     base_features = sessions.groupBy("user_id").agg(*agg_exp)
     # lags
@@ -140,7 +139,7 @@ def get_base_model(events, week_target):
         ["session_count", "purchase_count", "purchase_revenue", "cumavg_profit"])
     last_monthgroup = user_month_lags.agg(f.max("start_monthgroup").alias("smg"))\
         .collect()[0].__getitem__("smg")
-    lag_cols = [c for c in user_month_lags.columns if ("_ma" in c) or ("_lag" in c) or ("user_id" in c)]
+    lag_cols = [c for c in user_month_lags.columns if("_ma"in c)|("_lag" in c)|("user_id" in c)]
     user_month_lags = (user_month_lags.where(f.col("start_monthgroup")==last_monthgroup)
                            .select(*lag_cols).fillna(0))
     # push it out
