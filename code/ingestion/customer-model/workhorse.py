@@ -22,7 +22,7 @@ def _get_target(events, split_time, week_target):
     target = events.select("user_id").distinct()\
         .join((events.where(f.col("event_time")>split_time)
             .groupBy("user_id").agg(
-                f.when(f.sum("purchase")>0,1).otherwise(0).alias("target_event"),
+                f.when(f.sum("purchase")>0,0).otherwise(1).alias("target_event"),
                 f.sum(f.col("revenue")).alias("target_revenue"))),
             on=["user_id"], how="left")\
         .join(events.groupBy("user_id").agg(
@@ -112,6 +112,6 @@ def split_save_customer_model(dataset_name, week_steps=11,
         temp_split_date = temp_max_date+relativedelta(days=-(7*week_target))
         customer_model = _construct_customer_model(dataset_name,
             events.where(f.col("event_time")<=temp_max_date),
-            temp_split_date, week_steps, week_target)
+            temp_split_date, week_step, week_target)
         customer_model.write.format("delta").mode("append")\
             .saveAsTable(f"churndb.{dataset_name}_customer_model")
