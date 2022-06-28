@@ -212,8 +212,5 @@ def _plot_hyperopt(parent_run_id, labels):
 
 # COMMAND ----------
 
-#_prerun_optimize_recom("retailrocket")
-
-# COMMAND ----------
-
-
+# run this before cust model build
+#_prerun_optimize_recom("rees46")
