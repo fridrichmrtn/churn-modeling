@@ -5,7 +5,7 @@
 
 from hyperopt import SparkTrials, tpe
 hyperopt_config = {
-    "max_evals":25,
+    "max_evals":50,
     "trials":SparkTrials,
     "algo":tpe.suggest,
     "seed":20220602}
