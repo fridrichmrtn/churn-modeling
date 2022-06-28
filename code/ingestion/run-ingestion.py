@@ -18,8 +18,8 @@
 
 dataset_name = "retailrocket"
 # LOAD TRANSFORM
-events = construct_events(dataset_name)
-save_events(events, dataset_name)
+#events = construct_events(dataset_name)
+#save_events(events, dataset_name)
 # CUSTOMER MODEL
 split_save_customer_model(dataset_name, week_steps=11,
     week_target=4, overwrite=True)
@@ -30,10 +30,10 @@ split_save_customer_model(dataset_name, week_steps=11,
 ##
 ### REES46
 
-dataset_name = "rees46"
+#dataset_name = "rees46"
 # LOAD TRANSFORM
-events = construct_events(dataset_name)
-save_events(events, dataset_name)
+#events = construct_events(dataset_name)
+#save_events(events, dataset_name)
 # CUSTOMER MODEL
-split_save_customer_model(dataset_name, week_steps=21,
-    week_target=4, overwrite=True)
+#split_save_customer_model(dataset_name, week_steps=10,
+#    week_target=4, overwrite=True)

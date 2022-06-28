@@ -22,17 +22,23 @@ def _get_data(dataset_name, week_step):
         .where(f.col("week_step")>week_step).toPandas()
     test = spark.table(f"churndb.{dataset_name}_customer_model")\
         .where(f.col("week_step")==week_step).toPandas()
-    out_cols = ["user_id", "target_event", "target_revenue", "week_step"]
+    out_cols = ["user_id", "target_event", "target_revenue", "week_step",
+        "target_cap", "cap_month_lag0", "cap_month_lag1",
+        "cap_month_lag2", "cap_month_lag3", "cap_month_ma3"]    					
     feat_cols = [c for c in train.columns if c not in set(out_cols)]
     return {
       "train":
             {"X":_optimize_numeric_dtypes(train.loc[:,feat_cols]),
              "y":train["target_event"],
+             "user_id":train.loc[:,"user_id"],
+             "cap":train.loc[:,"target_cap"],
              "week_step":week_step,
              "name":f"{dataset_name}_{week_step}"},
       "test":
             {"X":_optimize_numeric_dtypes(test.loc[:,feat_cols]),
              "y":test["target_event"],
+             "user_id":test.loc[:,"user_id"],
+             "cap":test.loc[:,"target_cap"],
              "week_step":week_step,
              "name":f"{dataset_name}_{week_step}"}}
     
@@ -63,11 +69,42 @@ def _evaluate_pipeline(data, pipe):
             .saveAsTable(f"churndb.{dataset_name}_performance")
     return pipe
 
+def _get_predictions(data, pipe):
+    #import numpy as np
+    import pandas as pd
+    predictions = []
+    for temp_type, temp_data in data.items():
+        predictions.append(pd.DataFrame.from_dict({
+            "pipe":pipe["name"],
+            "type":temp_type,
+            "week_step":temp_data["week_step"],
+            "user_id":temp_data["user_id"],
+            "y":temp_data["y"],
+            "cap":temp_data["cap"],
+            "y_pred":pipe["fitted"].predict(temp_data["X"]),
+            "y_pred_proba":pipe["fitted"].predict_proba(temp_data["X"])[:,1]}))
+    return pd.concat(predictions)
+
+def _save_predictions(predictions):
+    spark.createDataFrame(predictions)\
+        .write.format("delta").mode("append")\
+            .saveAsTable(f"churndb.{dataset_name}_predictions")
+    return None
+    
 def glue_pipeline(dataset_name, week_range):
     for week_step in week_range:
         data = _get_data(dataset_name, week_step)
         for pipe_name, pipe in pipelines.items():
             pipe = _optimize_pipeline(data["train"], pipe)
             pipe = _fit_calibrated_pipeline(data["train"], pipe)
-            pipe = _evaluate_pipeline(data, pipe)
+            preds = _get_predictions(data, pipe)
     return None
+
+# COMMAND ----------
+
+# evals through standard metrics
+# generate random draws
+# for each user
+    # draw gamma from beta dist (promo accepted by churner)
+    # draw delta - incentive value (consider distribution)
+    # draw from beta dist (offer accepted by non-churner)
