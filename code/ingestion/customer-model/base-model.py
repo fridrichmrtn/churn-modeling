@@ -34,7 +34,8 @@ def _get_sessions(events):
     from pyspark.sql.window import Window
     
     # base sessions
-    sessions = events.groupBy("user_session_id", "user_id").agg(    
+    sessions = events.groupBy("user_session_id", "user_id").agg(
+        
         # time chars
             # overall session properties
             f.min("event_time").alias("start"), f.max("event_time").alias("end"),
@@ -132,7 +133,7 @@ def get_base_model(events, week_target):
         f.sum("haspurchase").alias("purchase_count"),
         f.sum("purchase_revenue").alias("purchase_revenue"),
         f.sum("purchase_profit").alias("purchase_profit"))\
-        .withColumn("cumavg_profit", f.mean("purchase_profit").over(uwc))
+            .withColumn("cumavg_profit", f.mean("purchase_profit").over(uwc))
     user_month_groups = user_month.join(user_month_groups,
         on=["user_id", "start_monthgroup"], how="left")
     user_month_lags = _add_lags(user_month_groups,
@@ -141,6 +142,6 @@ def get_base_model(events, week_target):
         .collect()[0].__getitem__("smg")
     lag_cols = [c for c in user_month_lags.columns if("_ma"in c)|("_lag" in c)|("user_id" in c)]
     user_month_lags = (user_month_lags.where(f.col("start_monthgroup")==last_monthgroup)
-                           .select(*lag_cols).fillna(0))
+        .select(*lag_cols).fillna(0))
     # push it out
     return base_features.join(user_month_lags, on=["user_id"], how="inner")
