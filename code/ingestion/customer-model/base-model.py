@@ -133,11 +133,11 @@ def get_base_model(events, week_target):
         f.sum("haspurchase").alias("purchase_count"),
         f.sum("purchase_revenue").alias("purchase_revenue"),
         f.sum("purchase_profit").alias("purchase_profit"))\
-            .withColumn("cumavg_profit", f.mean("purchase_profit").over(uwc))
+            .withColumn("cap", f.mean("purchase_profit").over(uwc))
     user_month_groups = user_month.join(user_month_groups,
         on=["user_id", "start_monthgroup"], how="left")
     user_month_lags = _add_lags(user_month_groups,
-        ["session_count", "purchase_count", "purchase_revenue", "cumavg_profit"])
+        ["session_count", "purchase_count", "purchase_revenue", "cap"])
     last_monthgroup = user_month_lags.agg(f.max("start_monthgroup").alias("smg"))\
         .collect()[0].__getitem__("smg")
     lag_cols = [c for c in user_month_lags.columns if("_ma"in c)|("_lag" in c)|("user_id" in c)]
