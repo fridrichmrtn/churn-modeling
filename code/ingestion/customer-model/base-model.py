@@ -21,7 +21,7 @@ def _add_lags(df, colnames, lags=[0,1,2,3], ma=3):
     for c in colnames:
         for l in lags:
             df = df.withColumn(c+"_month_lag"+str(l), f.lag(c,l).over(uw)) # lags
-        df = df.withColumn(c+"_month_ma"+str(ma), f.mean(f.col("session_count")).over(uwr)) # moving avg
+        df = df.withColumn(c+"_month_ma"+str(ma), f.mean(c).over(uwr)) # moving avg  
         # possibly add diff, and a few other interactions
     return df
 
@@ -81,9 +81,9 @@ def _get_sessions(events):
             ((f.max("event_time")-f.min("event_time")).cast("long")/\
                 (60* f.sum((f.col("cart")*f.col("price"))))).alias("time_to_cart_revenue"),
             ((f.max("event_time")-f.min("event_time")).cast("long")/\
-                (60* f.sum((f.col("purchase")*f.col("price"))))).alias("time_to_purchase_revenue"))
+                (60* f.sum((f.col("purchase")*f.col("price"))))).alias("time_to_purchase_revenue"),
         # profit
-           #f.sum((f.col("purchase")*f.col("profit"))).alias("purchases_profit"))
+           f.sum((f.col("purchase")*f.col("profit"))).alias("purchase_profit"))
     
     # windowing
     ws = Window().partitionBy("user_id").orderBy("start")
@@ -107,14 +107,11 @@ def _get_sessions(events):
 def get_base_model(events, week_target):
     from functools import partial
     import pyspark.sql.functions as f
-    
+    from pyspark.sql.window import Window
     sessions = _get_sessions(events)
-    n_weeks = sessions.agg((f.datediff(f.max("start"),
-            f.min("start"))/7).alias("dr"))\
-        .collect()[0]["dr"]
     
     # statistics
-    excl_cols = set(["user_session_id", "user_id", "start", "end", "start_monthgroup"])
+    excl_cols = set(["user_session_id", "user_id", "start", "end", "start_monthgroup", "purchase_profit"]
     stat_cols = [c for c in sessions.columns if c not in excl_cols]
     stat_funcs = [f.mean, f.sum, f.min, f.max, f.stddev_samp, _variation] # extend?
     stat_exp = [f(c).alias(c+"_"+list(filter(None,str(f.__name__).split("_")))[0])                
@@ -122,27 +119,29 @@ def get_base_model(events, week_target):
     # hand-crafted interactions, possibly extend
     int_exp = [(f.max("session_number")/f.max("session_recency")).alias("session_count_daily_ratio"),
         (f.sum("click_count")/f.max("session_number")).alias("click_count_ratio"),
-        (f.sum("purchase_count")/f.max("session_number")).alias("transaction_count_ratio"),
-        (week_target*f.sum((f.col("purchase")*f.col("profit")))/n_weeks).alias("cumulative_average_profit")]
+        (f.sum("purchase_count")/f.max("session_number")).alias("transaction_count_ratio")]
     
     agg_exp = stat_exp + int_exp
     base_features = sessions.groupBy("user_id").agg(*agg_exp)
     # lags
+    uwc = Window.partitionBy("user_id").orderBy(f.col("start_monthgroup"))\
+        .rowsBetween(Window.unboundedPreceding,0)
     user_month = (sessions.select("user_id").distinct()
         .crossJoin(sessions.select("start_monthgroup").distinct()))
     user_month_groups = sessions.groupBy("user_id", "start_monthgroup").agg(
         f.count("user_session_id").alias("session_count"),
         f.sum("haspurchase").alias("purchase_count"),
-        f.sum("purchase_revenue").alias("purchase_revenue"))
-        #f.sum("purchase_profit").alias("purchase_profit"))
+        f.sum("purchase_revenue").alias("purchase_revenue"),
+        f.sum("purchase_profit").alias("purchase_profit"))\
+        .withColumn("cumavg_profit", f.mean("purchase_profit").over(uwc))
     user_month_groups = user_month.join(user_month_groups,
         on=["user_id", "start_monthgroup"], how="left")
     user_month_lags = _add_lags(user_month_groups,
-        ["session_count", "purchase_count", "purchase_revenue"])
+        ["session_count", "purchase_count", "purchase_revenue", "cumavg_profit"])
     last_monthgroup = user_month_lags.agg(f.max("start_monthgroup").alias("smg"))\
         .collect()[0].__getitem__("smg")
     lag_cols = [c for c in user_month_lags.columns if ("_ma" in c) or ("_lag" in c) or ("user_id" in c)]
     user_month_lags = (user_month_lags.where(f.col("start_monthgroup")==last_monthgroup)
-                           .select(*lag_cols))#.fillna(0)
+                           .select(*lag_cols).fillna(0))
     # push it out
     return base_features.join(user_month_lags, on=["user_id"], how="inner")
