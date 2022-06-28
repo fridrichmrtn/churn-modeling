@@ -102,10 +102,10 @@ from imblearn.pipeline import Pipeline
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.preprocessing import RobustScaler, QuantileTransformer, PowerTransformer
 from imblearn.under_sampling import RandomUnderSampler
-from imblearn.over_sampling import RandomOverSampler
+from imblearn.over_sampling import RandomOverSampler, SMOTE
 
 scaling = [RobustScaler(), QuantileTransformer(), PowerTransformer()]
-sampling = [RandomUnderSampler(), RandomOverSampler()]
+sampling = [RandomUnderSampler(), RandomOverSampler(), SMOTE()]
 
 preprocessing = {
     "smooth":
