@@ -97,14 +97,14 @@ def glue_pipeline(dataset_name, week_range):
         for pipe_name, pipe in pipelines.items():
             pipe = _optimize_pipeline(data["train"], pipe)
             pipe = _fit_calibrated_pipeline(data["train"], pipe)
-            preds = _get_predictions(data, pipe)
+            _save_predictions(_get_predictions(data, pipe))
     return None
 
 # COMMAND ----------
 
 # evals through standard metrics
-# generate random draws
+# generate 1000 random draws
 # for each user
     # draw gamma from beta dist (promo accepted by churner)
-    # draw delta - incentive value (consider distribution)
     # draw from beta dist (offer accepted by non-churner)
+    # draw delta - incentive value
