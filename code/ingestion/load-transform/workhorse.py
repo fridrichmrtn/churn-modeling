@@ -244,11 +244,11 @@ from functools import partial
 load_transform_config = {
     "rees46":
         {"load":_rees46_load, "fix":_rees46_fix, "filter":_rees46_filter,
-         "profit":partial(simulate_profit, loc=0.1, scale=0.05, seed=0),
+         "profit":partial(simulate_profit, loc=0.15, scale=0.05, seed=0),
          "data":"dbfs:/mnt/rees46/"},
     "retailrocket":
         {"load":_retailrocket_load, "fix":_retailrocket_fix, "filter":_retailrocket_filter,
-         "profit":partial(simulate_profit, loc=0.1, scale=0.05, seed=0),
+         "profit":partial(simulate_profit, loc=0.15, scale=0.05, seed=0),
          "data":"dbfs:/mnt/retailrocket/"}}
     
 def construct_events(dataset_name):
