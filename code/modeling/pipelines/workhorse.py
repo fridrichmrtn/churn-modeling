@@ -16,7 +16,6 @@ def _optimize_numeric_dtypes(df):
 # data class?
 def _get_data(dataset_name, week_step):
     # NOTE: customer-model/workhorse.py/split_save_customer_model
-    # NOTE: refactor this for own model/profit measures
     import pyspark.sql.functions as f
     train = spark.table(f"churndb.{dataset_name}_customer_model")\
         .where(f.col("week_step")>week_step).toPandas()
@@ -85,7 +84,7 @@ def _get_predictions(data, pipe):
             "y_pred_proba":pipe["fitted"].predict_proba(temp_data["X"])[:,1]}))
     return pd.concat(predictions)
 
-def _save_predictions(predictions):
+def _save_predictions(dataset_name, predictions):
     spark.createDataFrame(predictions)\
         .write.format("delta").mode("append")\
             .saveAsTable(f"churndb.{dataset_name}_predictions")
@@ -97,7 +96,7 @@ def glue_pipeline(dataset_name, week_range):
         for pipe_name, pipe in pipelines.items():
             pipe = _optimize_pipeline(data["train"], pipe)
             pipe = _fit_calibrated_pipeline(data["train"], pipe)
-            _save_predictions(_get_predictions(data, pipe))
+            _save_predictions(dataset_name, _get_predictions(data, pipe))
     return None
 
 # COMMAND ----------
