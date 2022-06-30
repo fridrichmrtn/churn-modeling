@@ -254,6 +254,96 @@ revenue = users.crossJoin(dates).join(purchases, on=["user_id", "date"], how="le
 
 # COMMAND ----------
 
-# DEFINE DISTIBUTIONS FOR gamma, delta, psi
-#
-#
+profit_simulation_config = {"retailrocket":{
+    "gamma":{"alpha":20, "beta":113},
+    "delta":2000,
+    "psi":{"alpha":9, "beta":1},
+    "n_iter":1000,
+    "seed":1}}
+
+# COMMAND ----------
+
+def _evaluate_predictions(df, config):
+    # standard metrics
+    from sklearn.metrics import accuracy_score, precision_score
+    from sklearn.metrics import recall_score, f1_score, roc_auc_score
+    import pandas as pd
+    metrics = {m.__name__:m for m in\
+        [accuracy_score, precision_score, recall_score, f1_score, roc_auc_score]}
+    y = df["y"]
+    predicted = df["y_pred"]
+    predicted_proba = df["y_pred_proba"]
+    results ={}
+    for n,f in metrics.items():
+        if "roc_auc" in n:
+            results[n] = f(y, predicted_proba)
+        else:
+            results[n] = f(y, predicted)
+    simulated_profit = get_simulated_profit(df, config)
+    results["mep_score"] = simulated_profit.cecp.max()
+    results["map_score"] = simulated_profit.cacp[simulated_profit.cecp.idxmax()]
+    return pd.Series(results)
+
+# COMMAND ----------
+
+# NOTE: THIS MIGHT REFACTORED - SIMULATE THE PARAMS SEPARATELY
+def get_simulated_profit(predictions, config):
+    import numpy as np
+    import pandas as pd
+    gamma = config["gamma"]
+    delta = config["delta"]
+    psi = config["psi"]
+    n_iter=config["n_iter"]
+    seed = config["seed"]    
+    
+    np.random.seed(seed)
+    n_users = predictions.user_id.nunique()
+    simulated_profit = []
+    
+    for i in range(n_iter):
+        gamma_psi = pd.DataFrame.from_dict({
+            "user_id":predictions.user_id.unique(),
+            "gamma":np.random.beta(gamma["alpha"], gamma["beta"], size=n_users),
+            "psi":np.random.beta(psi["alpha"], psi["beta"], size=n_users)})
+        temp = predictions.merge(gamma_psi, on=["user_id"])
+        temp["ecp"] = (temp["y_pred_proba"] * temp["gamma"]*(temp["cap"]-delta)
+            + (1-temp["y_pred_proba"])*(-temp["psi"]*delta))
+        temp["acp"] = (temp["y"]*temp["gamma"]*(temp["cap"]-delta)
+            + (1-temp["y"])*(-temp["psi"]*delta))
+        # NOTE: OPTIMIZE DTYPES
+        simulated_profit.append(temp.loc[:,["ecp", "acp"]])
+    simulated_profit = pd.concat(simulated_profit)
+    simulated_profit = simulated_profit\
+        .sort_values("ecp", ascending=False).reset_index(drop=True)
+    simulated_profit["cecp"] = simulated_profit.ecp.cumsum()/n_iter
+    simulated_profit["perce"] = simulated_profit.ecp.rank(ascending=False, pct=True)
+    simulated_profit = simulated_profit\
+        .sort_values("acp", ascending=False).reset_index(drop=True)    
+    simulated_profit["cacp"] = simulated_profit.acp.cumsum()/n_iter
+    simulated_profit["perca"] = simulated_profit.acp.rank(ascending=False, pct=True)
+    return simulated_profit
+
+def plot_simulated_profit(simulated_profit):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    
+    f, a = plt.subplots(1,1, figsize=(15,10))
+    sns.lineplot(#data=simulated_profit,
+        x=sp.perce, y=sp.cecp, legend=False,
+        color=sns.color_palette("rocket")[0], ax=a);
+    sns.lineplot(#data=simulated_profit,
+        x=sp.perca, y=sp.cacp, legend=False,
+        color=sns.color_palette("rocket")[3], ax=a);
+    a.set_ylabel("profit");
+    a.set_xlabel("percentile");
+    a.legend(loc="lower left",
+        labels=["expected profit", "actual profit"]);
+    a.axhline(0, linestyle="dotted", c="k");
+    return None
+
+# COMMAND ----------
+
+dataset_name = "retailrocket"
+predictions = spark.table(f"churndb.{dataset_name}_predictions").toPandas()
+predictions.groupby(["pipe","type", "week_step"], as_index=False)\
+    .apply(_evaluate_predictions, profit_simulation_config[dataset_name])
