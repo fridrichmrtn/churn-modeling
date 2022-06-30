@@ -286,7 +286,10 @@ def _evaluate_predictions(df, config):
 
 # COMMAND ----------
 
-# NOTE: THIS MIGHT REFACTORED - SIMULATE THE PARAMS SEPARATELY
+# NOTE: THIS MIGHT REFACTORED
+    # SIMULATE PARAMS FOR EACH WEEK
+    # JOIN SIMULATED PARAMS ON PREDICTIONS
+    # CALC THE SHIT
 def get_simulated_profit(predictions, config):
     import numpy as np
     import pandas as pd
@@ -299,7 +302,6 @@ def get_simulated_profit(predictions, config):
     np.random.seed(seed)
     n_users = predictions.user_id.nunique()
     simulated_profit = []
-    
     for i in range(n_iter):
         gamma_psi = pd.DataFrame.from_dict({
             "user_id":predictions.user_id.unique(),
@@ -345,5 +347,5 @@ def plot_simulated_profit(simulated_profit):
 
 dataset_name = "retailrocket"
 predictions = spark.table(f"churndb.{dataset_name}_predictions").toPandas()
-predictions.groupby(["pipe","type", "week_step"], as_index=False)\
+predictions.groupby(["pipe", "type", "week_step"], as_index=False)\
     .apply(_evaluate_predictions, profit_simulation_config[dataset_name])
