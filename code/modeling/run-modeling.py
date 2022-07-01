@@ -3,8 +3,9 @@
 
 # COMMAND ----------
 
-#glue_pipeline("rees46", range(1,11))
+#glue_pipeline("rees46", range(1,9))
 
 # COMMAND ----------
 
-glue_pipeline("retailrocket", range(1,11))
+#spark.sql("DELETE FROM churndb.retailrocket_predictions WHERE pipe='dt'")
+glue_pipeline("retailrocket", range(1,9), False)

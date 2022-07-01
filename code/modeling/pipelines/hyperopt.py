@@ -76,7 +76,7 @@ def _optimize_pipeline(data, pipe):
                 X=data["X"], y=data["y"], pipe=pipe["steps"],\
                     seed=hyperopt_config["seed"]),
             space=pipe["space"], max_evals=hyperopt_config["max_evals"], 
-            trials=hyperopt_config["trials"](parallelism=4), algo=hyperopt_config["algo"])
+            trials=hyperopt_config["trials"](parallelism=5), algo=hyperopt_config["algo"])
     pipe["steps"] =  pipe["steps"].set_params(
         **space_eval(pipe["space"], space_optimized))
     return pipe

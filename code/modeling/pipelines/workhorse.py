@@ -90,7 +90,9 @@ def _save_predictions(dataset_name, predictions):
             .saveAsTable(f"churndb.{dataset_name}_predictions")
     return None
     
-def glue_pipeline(dataset_name, week_range):
+def glue_pipeline(dataset_name, week_range, drop_predictions=True):
+    if drop_predictions:
+        spark.sql(f"DROP TABLE IF EXISTS churndb.{dataset_name}_predictions;")
     for week_step in week_range:
         data = _get_data(dataset_name, week_step)
         for pipe_name, pipe in pipelines.items():
