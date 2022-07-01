@@ -141,85 +141,99 @@ from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassif
 from lightgbm import LGBMClassifier
 
 models = {
-    "lr":
-          {"model":
-               [("lr", LogisticRegression(solver="saga",
-                   penalty="elasticnet", max_iter=200))],          
-           "space":
-               {"lr__C":hp.uniform("lr__C",10**-2,10**1),
-                "lr__l1_ratio":hp.uniform("lr__l1_ratio",0,1)},
-           "preprocessing":"smooth"},
-    "svm_lin":
-          {"model":
-               [("svm_lin", LinearSVC(dual=False))],
-           "space":
-               {"svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1),
-                "svm_lin__penalty":hp.choice("svm_lin__penalty",["l1","l2"])},
-          "preprocessing":"smooth"},
-    "svm_rbf":
-          {"model":
-               [("rbf", Nystroem()),
-                ("svm_lin", LinearSVC(dual=False))],
-           "space":
-               {"rbf__n_components":hp.randint("rbf__n_components",20,100),
-                "svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1),
-                "svm_lin__penalty":hp.choice("svm_lin__penalty",["l1","l2"])},
-          "preprocessing":"smooth"},
+#     "lr":
+#           {"model":
+#                [("lr", LogisticRegression(solver="saga",
+#                    penalty="elasticnet", max_iter=200))],          
+#            "space":
+#                {"lr__C":hp.uniform("lr__C",10**-2,10**1),
+#                 "lr__l1_ratio":hp.uniform("lr__l1_ratio",0,1)},
+#            "preprocessing":"smooth"},
+#     "svm_lin":
+#           {"model":
+#                [("svm_lin", LinearSVC(dual=False))],
+#            "space":
+#                {"svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1),
+#                 "svm_lin__penalty":hp.choice("svm_lin__penalty",["l1","l2"])},
+#           "preprocessing":"smooth"},
+#     "svm_rbf":
+#           {"model":
+#                [("rbf", Nystroem()),
+#                 ("svm_lin", LinearSVC(dual=False))],
+#            "space":
+#                {"rbf__n_components":hp.randint("rbf__n_components",20,100),
+#                 "svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1),
+#                 "svm_lin__penalty":hp.choice("svm_lin__penalty",["l1","l2"])},
+#           "preprocessing":"smooth"},
     
     "mlp":
           {"model":
                [("mlp", MLPClassifier())],
            "space":
-               {"mlp__batch_size":hp.randint("mlp__batch_size",2**3,2**7),
+               {"mlp__batch_size":hp.randint("mlp__batch_size",2**3,2**5),
                 "mlp__epochs":hp.randint("mlp__epochs",10**2,10**3),
                 "mlp__n_layers":hp.randint("mlp__n_layers",1,10),
-                "mlp__layer_size":hp.randint("mlp__layer_size",2**2,2**8),
+                "mlp__layer_size":hp.randint("mlp__layer_size",2**2,2**7),
                 "mlp__activation":hp.choice("mlp__activation",
                     ["tanh", "sigmoid", "relu", keras.layers.LeakyReLU()]),
                 "mlp__optimizer__learning_rate":hp.uniform("mlp__optimizer__learning_rate", 10**-5,10**-3),
                 "mlp__optimizer":hp.choice("mlp__optimizer",["sgd", "adam", "rmsprop"])},
           "preprocessing":"smooth"},
     
-    "dt":
-          {"model":
-               [("dt", DecisionTreeClassifier())],
-           "space":
-               {"dt__max_depth":hp.randint("dt__max_depth",2,30),
-                "dt__min_samples_split":hp.randint("dt__min_samples_split",10**1,2*10**2),
-                "dt__min_samples_leaf":hp.randint("dt__min_samples_leaf",1,100),
-                #"dt__ccp_alpha":hp.uniform("dt__base_estimator__ccp_alpha",0,1),
-                "dt__min_impurity_decrease":hp.uniform("dt__min_impurity_decrease",0,.05),
-                "dt__min_weight_fraction_leaf":hp.uniform("dt__min_weight_fraction_leaf",0,.05),
-               },
-          "preprocessing":"tree"},
-    "rf":
-          {"model":
-               [("rf", RandomForestClassifier())],
-           "space":
-               {"rf__n_estimators":hp.randint("rf__n_estimators",25,500),
-                "rf__max_features":hp.uniform("rf__max_features",0.1,.7),
-                "rf__max_depth":hp.randint("rf__max_depth",2,30),
-                "rf__min_samples_split":hp.randint("rf__min_samples_split",10**1,2*10**2),
-                "rf__min_samples_leaf":hp.randint("rf__min_samples_leaf",1,100),
-                #"dt__ccp_alpha":hp.uniform("dt__ccp_alpha",0,0.05),
-                "rf__min_impurity_decrease":hp.uniform("rf__min_impurity_decrease",0,.05),
-                "rf__min_weight_fraction_leaf":hp.uniform("rf__min_weight_fraction_leaf",0,.05),
-               },
-          "preprocessing":"tree"},
+#     "dt":
+#           {"model":
+#                [("dt", DecisionTreeClassifier())],
+#            "space":
+#                {"dt__max_depth":hp.randint("dt__max_depth",2,30),
+#                 "dt__min_samples_split":hp.randint("dt__min_samples_split",10**1,2*10**2),
+#                 "dt__min_samples_leaf":hp.randint("dt__min_samples_leaf",1,100),
+#                 #"dt__ccp_alpha":hp.uniform("dt__base_estimator__ccp_alpha",0,1),
+#                 "dt__min_impurity_decrease":hp.uniform("dt__min_impurity_decrease",0,.05),
+#                 "dt__min_weight_fraction_leaf":hp.uniform("dt__min_weight_fraction_leaf",0,.05),
+#                },
+#           "preprocessing":"tree"},
+#     "rf":
+#           {"model":
+#                [("rf", RandomForestClassifier())],
+#            "space":
+#                {"rf__n_estimators":hp.randint("rf__n_estimators",25,500),
+#                 "rf__max_features":hp.uniform("rf__max_features",0.1,.7),
+#                 "rf__max_depth":hp.randint("rf__max_depth",2,30),
+#                 "rf__min_samples_split":hp.randint("rf__min_samples_split",10**1,2*10**2),
+#                 "rf__min_samples_leaf":hp.randint("rf__min_samples_leaf",1,100),
+#                 #"dt__ccp_alpha":hp.uniform("dt__ccp_alpha",0,0.05),
+#                 "rf__min_impurity_decrease":hp.uniform("rf__min_impurity_decrease",0,.05),
+#                 "rf__min_weight_fraction_leaf":hp.uniform("rf__min_weight_fraction_leaf",0,.05),
+#                },
+#           "preprocessing":"tree"},
     
-    "hgb":
-          {"model":
-               [("hgb", HistGradientBoostingClassifier())],
-           "space":
-               {
-                "hgb__learning_rate":hp.uniform("hgb__learning_rate",0.01,.15),
-                "hgb__max_iter":hp.randint("hgb__max_iter",25,500),
-                "hgb__max_leaf_nodes":hp.randint("hgb__max_leaf_nodes",5**2,5**3),
-                "hgb__max_depth":hp.randint("hgb__max_depth",2,30),
-                "hgb__min_samples_leaf":hp.randint("hgb__min_samples_leaf",1,100),
-                "hgb__l2_regularization":hp.uniform("hgb__l2_regularization",0,10**2),                
-        },
-          "preprocessing":"tree"}
+#    "hgb":
+#          {"model":
+#               [("hgb", HistGradientBoostingClassifier())],
+#           "space":
+#               {
+#                "hgb__learning_rate":hp.uniform("hgb__learning_rate",0.01,.15),
+#                "hgb__max_iter":hp.randint("hgb__max_iter",25,500),
+#                "hgb__max_leaf_nodes":hp.randint("hgb__max_leaf_nodes",5**2,5**3),
+#                "hgb__max_depth":hp.randint("hgb__max_depth",2,30),
+#                "hgb__min_samples_leaf":hp.randint("hgb__min_samples_leaf",1,100),
+#                "hgb__l2_regularization":hp.uniform("hgb__l2_regularization",0,10**2),                
+#        },
+#          "preprocessing":"tree"}
+#     "hgb":
+#           {"model":
+#                [("hgb", LGBMClassifier())],
+#            "space":
+#                {
+#                 "hgb__learning_rate":hp.uniform("hgb__learning_rate",0.01,.15),
+#                 "hgb__n_estimators":hp.randint("hgb__n_estimators",25,500),
+#                 "hgb__max_leaf_nodes":hp.randint("hgb__max_leaf_nodes",5**2,5**3),
+#                 "hgb__max_depth":hp.randint("hgb__max_depth",2,30),
+#                 "hgb__min_child_samples ":hp.randint("hgb__min_child_samples",1,100),
+#                 "hgb__reg_lambda":hp.uniform("hgb__reg_lambda",0,10**2),                
+#         },
+#           "preprocessing":"tree"}    
+    
 }
 
 #
