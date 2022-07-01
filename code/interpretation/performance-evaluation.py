@@ -8,6 +8,8 @@ def _ci(vec, alpha=0.95):
     return (low, mju , hi)
 
 def get_ci(df):
+    import pandas as pd
+    
     df = df.groupby(["pipe", "type", "metric"], as_index=False)\
         .agg(bounds=("value", _ci))
     df = pd.concat([df, pd.DataFrame(df["bounds"].tolist(),
@@ -17,15 +19,19 @@ def get_ci(df):
 
 def _tt(df, a="value_x", b="value_y"):
     from scipy.stats import ttest_rel
+    import numpy as np
     tstat, pval = ttest_rel(df[a], df[b])
-    return (tstat, pval)
+    diff = np.mean(df[a]-df[b])
+    return (diff, tstat, pval)
 
 def get_tt(df):
+    import pandas as pd
+    
     df = df.merge(df, on=["type", "week_step", "metric"])\
         .groupby(["pipe_x","pipe_y","type","metric"])\
             .apply(_tt).to_frame('ttest').reset_index()
     df = pd.concat([df, pd.DataFrame(df["ttest"].tolist(),
-        columns=["stat", "pval"])], axis=1)\
+        columns=["diff", "stat", "pval"])], axis=1)\
             .drop("ttest",axis=1)
     df = df[df["pipe_x"]>df["pipe_y"]]
     return df
@@ -38,7 +44,7 @@ def plot_bv(df, metrics, figsize=(16,5)):
     tdf = pd.pivot_table(experimental_data,
         index=["pipe","week_step", "metric"],
             columns=["type"]).reset_index()
-    tdf.columns = ["pipe","week_step", "metric", "train", "test"]
+    tdf.columns = ["pipe","week_step", "metric", "test", "train"]
 
     f, axs = plt.subplots(1,3, figsize=figsize);
     for i,m in enumerate(metrics.items()):
