@@ -105,7 +105,7 @@ from imblearn.under_sampling import RandomUnderSampler
 from imblearn.over_sampling import RandomOverSampler
 
 scaling = [RobustScaler(), QuantileTransformer(), PowerTransformer()]
-sampling = [RandomUnderSampler(), RandomOverSampler()]
+sampling = [RandomUnderSampler(), RandomOverSampler(),"passthrough"]
 
 preprocessing = {
     "smooth":
@@ -113,7 +113,7 @@ preprocessing = {
             [("variance_filter", VarianceThreshold()),
             ("data_scaler", PowerTransformer()),
             ("feature_selector", HierarchicalFeatureSelector()),
-            ("data_sampler", RandomUnderSampler())],
+            ("data_sampler", "passthrough")],
         "space":
             {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-1, 5*10**1),
             "data_scaler":hp.choice("data_scaler", scaling),
@@ -123,7 +123,8 @@ preprocessing = {
     "tree":
          {"steps":
               [("variance_filter", VarianceThreshold()),
-              ("data_sampler", RandomUnderSampler())],
+              ("data_sampler", "passthrough")
+              ],
          "space":
              {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-2, 5*10**1),
              "data_sampler":hp.choice("data_sampler", sampling)
@@ -165,7 +166,6 @@ models = {
                 "svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1),
                 "svm_lin__penalty":hp.choice("svm_lin__penalty",["l1","l2"])},
           "preprocessing":"smooth"},
-    
     "mlp":
           {"model":
                [("mlp", MLPClassifier())],
@@ -179,7 +179,6 @@ models = {
                 "mlp__optimizer__learning_rate":hp.uniform("mlp__optimizer__learning_rate", 10**-5,10**-3),
                 "mlp__optimizer":hp.choice("mlp__optimizer",["sgd", "adam", "rmsprop"])},
           "preprocessing":"smooth"},
-    
     "dt":
           {"model":
                [("dt", DecisionTreeClassifier())],
@@ -206,7 +205,6 @@ models = {
                 "rf__min_weight_fraction_leaf":hp.uniform("rf__min_weight_fraction_leaf",0,.05),
                },
           "preprocessing":"tree"},
-    
    "hgb":
          {"model":
               [("hgb", HistGradientBoostingClassifier())],
