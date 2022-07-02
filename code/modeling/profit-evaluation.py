@@ -166,6 +166,7 @@ def get_ci(df):
 def _tt(df, a="value_x", b="value_y"):
     from scipy.stats import ttest_rel
     import numpy as np
+    
     tstat, pval = ttest_rel(df[a], df[b])
     diff = np.mean(df[a]-df[b])
     return (diff, tstat, pval)
@@ -182,7 +183,7 @@ def get_tt(df):
     df = df[df["pipe_x"]>df["pipe_y"]]
     return df
 
-def plot_bv(df, metrics, figsize=(16,5)):
+def plot_bias_variance(df, metrics, figsize=(16,5)):
     import pandas as pd
     import matplotlib.pyplot as plt
     import seaborn as sns
@@ -191,7 +192,6 @@ def plot_bv(df, metrics, figsize=(16,5)):
         index=["pipe","week_step", "metric"],
             columns=["type"]).reset_index()
     tdf.columns = ["pipe","week_step", "metric", "test", "train"]
-
     f, axs = plt.subplots(1,3, figsize=figsize);
     for i,m in enumerate(metrics.items()):
         a = axs.flatten()[i]
