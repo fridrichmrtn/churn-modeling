@@ -7,5 +7,5 @@
 
 # COMMAND ----------
 
-#spark.sql("DELETE FROM churndb.retailrocket_predictions WHERE pipe='dt'")
-glue_pipeline("retailrocket", range(1,9), False)
+spark.sql("DELETE FROM churndb.retailrocket_predictions WHERE pipe='mlp' AND week_step=1")
+glue_pipeline("retailrocket", range(1,2), False)
