@@ -1,4 +1,6 @@
+setuptools
 wheel
+jupyter
 numpy
 scipy
 pandas
@@ -6,4 +8,6 @@ matplotlib
 seaborn
 pyspark
 pyarrow
-jupyter
+tensorflow
+keras
+scikeras
