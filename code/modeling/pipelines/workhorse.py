@@ -17,10 +17,11 @@ def _optimize_numeric_dtypes(df):
 def _get_data(dataset_name, week_step):
     # NOTE: customer-model/workhorse.py/split_save_customer_model
     import pyspark.sql.functions as f
-    train = spark.table(f"churndb.{dataset_name}_customer_model")\
-        .where(f.col("week_step")>week_step).toPandas()
-    test = spark.table(f"churndb.{dataset_name}_customer_model")\
-        .where(f.col("week_step")==week_step).toPandas()
+    
+    data = spark.table(f"churndb.{dataset_name}_customer_model")\
+        .where(f.col("week_step")>=week_step).toPandas()
+    train = data[data.week_step>week_step]
+    test = data[data.week_step==week_step]
     out_cols = ["user_id", "target_event", "target_revenue", "week_step",
         "target_cap", "cap_month_lag0", "cap_month_lag1",
         "cap_month_lag2", "cap_month_lag3", "cap_month_ma3"]    					
@@ -43,14 +44,16 @@ def _get_data(dataset_name, week_step):
     
 def _fit_calibrated_pipeline(data, pipe):
     import mlflow
+    from sklearn.model_selection import train_test_split
     from sklearn.calibration import CalibratedClassifierCV
-    
+        
     exp_name = "{}_{}_refit".format(data["name"],pipe["name"])
     exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:
-        pipe["fitted"] = CalibratedClassifierCV(
-            pipe["steps"], cv=5, method="isotonic").fit(data["X"], data["y"])
+        #prefit_model = pipe["steps"].fit(X_train, y_train)
+        pipe["fitted"] = CalibratedClassifierCV(pipe["steps"],
+            cv=3, method="sigmoid").fit(data["X"], data["y"])
         mlflow.sklearn.log_model(pipe["fitted"],
              exp_name, registered_model_name=exp_name)
     return pipe    
@@ -100,12 +103,3 @@ def glue_pipeline(dataset_name, week_range, drop_predictions=True):
             pipe = _fit_calibrated_pipeline(data["train"], pipe)
             _save_predictions(dataset_name, _get_predictions(data, pipe))
     return None
-
-# COMMAND ----------
-
-# evals through standard metrics
-# generate 1000 random draws
-# for each user
-    # draw gamma from beta dist (promo accepted by churner)
-    # draw from beta dist (offer accepted by non-churner)
-    # draw delta - incentive value
