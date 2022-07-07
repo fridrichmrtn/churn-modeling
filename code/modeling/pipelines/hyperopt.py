@@ -13,6 +13,14 @@ hyperopt_config = {
 ##
 ### PIPELINE HYPEROPT
 
+def _get_Xy(data, pipe):
+    X = data["raw"].loc[:,data["columns"][pipe["type"]]]
+    if pipe["type"]=="standard":
+        y = data["raw"]["target_event"]
+    else:
+        y = data["raw"][["target_event", "target_cap"]]
+    return (X.values, y.values)
+
 def _get_exp_id(exp_path):
     import mlflow
     try:
@@ -67,13 +75,14 @@ def _optimize_pipeline(data, pipe):
     from functools import partial
     
     # set the experiment logging
+    X, y = _get_Xy(data, pipe)
     exp_name = "{}_{}_hyperopt".format(data["name"],pipe["name"])
     exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:
         space_optimized = fmin(
             fn=partial(_evaluate_hyperopt,
-                X=data["X"], y=data["y"], pipe=pipe["steps"],\
+                X=X, y=y, pipe=pipe["steps"],\
                     seed=hyperopt_config["seed"]),
             space=pipe["space"], max_evals=hyperopt_config["max_evals"], 
             trials=hyperopt_config["trials"](parallelism=5), algo=hyperopt_config["algo"])
