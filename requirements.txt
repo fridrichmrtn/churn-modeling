@@ -9,7 +9,6 @@ seaborn
 pyspark
 pyarrow
 tensorflow
-tensorflow-addons
 keras
 scikeras
 scikit-learn
