@@ -88,13 +88,12 @@ class HierarchicalFeatureSelector(SelectorMixin, BaseEstimator):
 #
 ##
 ### SAMPLING STRATEGIES
-
 from imblearn.under_sampling import RandomUnderSampler
 from imblearn.over_sampling import RandomOverSampler
 
 class _RandomUnderSampler(RandomUnderSampler):
     def __init__(self, sampling_strategy="auto"):
-        super().__init__(sampling_strategy)
+        super().__init__(sampling_strategy=sampling_strategy)
         self.y_=None
     @reduce_y
     def fit(self, X, y, **kwargs):
@@ -104,11 +103,11 @@ class _RandomUnderSampler(RandomUnderSampler):
     def fit_resample(self, X, y, **kwargs):
         _ = super().fit_resample(X, y, **kwargs)
         ind = self.sample_indices_
-        return X[ind,:], self.y_[ind]
+        return (X[ind,:], self.y_[ind])
 
 class _RandomOverSampler(RandomOverSampler):
     def __init__(self, sampling_strategy="auto"):
-        super().__init__(sampling_strategy)
+        super().__init__(sampling_strategy=sampling_strategy)
         self.y_=None
     @reduce_y
     def fit(self, X, y, **kwargs):
@@ -118,7 +117,7 @@ class _RandomOverSampler(RandomOverSampler):
     def fit_resample(self, X, y, **kwargs):
         _ = super().fit_resample(X, y, **kwargs)
         ind = self.sample_indices_
-        return X[ind,:], self.y_[ind]    
+        return (X[ind,:], self.y_[ind])
       
 # MLPC
 from tensorflow import keras
@@ -161,6 +160,7 @@ class MLPClassifier(KerasClassifier):
 ### CombiNet
 import numpy as np
 import pandas as pd
+#import copy
 from sklearn.base import BaseEstimator, clone
 from sklearn.model_selection import StratifiedKFold
 from sklearn.calibration import  _SigmoidCalibration
@@ -174,13 +174,14 @@ class MultiOutputCalibrationCV(BaseEstimator):
 
     def fit(self, X, y):
         calibrated_pairs = []
-        base_estimator = clone(self.base_estimator)
+        
         scv = StratifiedKFold(n_splits=2)
         for train_index, test_index in scv.split(X, y[:,0]):
             X_train, X_test = X[train_index], X[test_index]
             y_train, y_test = y[train_index], y[test_index]
 
             # fit combinet
+            base_estimator = clone(self.base_estimator)
             base_estimator.fit(X_train, y_train)
             y_pred = base_estimator.predict_proba(X_test)
         
@@ -293,6 +294,8 @@ class CombiNet(BaseWrapper):
             self.cc_units = cc_units
             self.epochs = epochs
             self.verbose = verbose
+            self.optimizer = optimizer
+            self.optimizer__clipvalue = optimizer__clipvalue
             self.__prediction_scope = {"classification":0,"regression":1,"full":range(2)}
 
     def _get_weight_init(self):
@@ -373,7 +376,7 @@ preprocessing = {
             [("variance_filter", VarianceThreshold()),
             ("data_scaler", PowerTransformer()),
             ("feature_selector", HierarchicalFeatureSelector()),
-            ("data_sampler", "passthrough")],
+            ("data_sampler", _RandomUnderSampler(sampling_strategy="auto"))],
         "space":
             {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-1, 5*10**1),
             "data_scaler":hp.choice("data_scaler", scaling),
@@ -406,15 +409,15 @@ from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassif
 from lightgbm import LGBMClassifier
 
 models = {
-    "lr":
-          {"model":
-               [("lr", LogisticRegression(solver="saga",
-                   penalty="elasticnet", max_iter=200))],          
-           "space":
-               {"lr__C":hp.uniform("lr__C",10**-2,10**1),
-                "lr__l1_ratio":hp.uniform("lr__l1_ratio",0,1)},
-           "preprocessing":"smooth",
-          "type":"standard"},
+#     "lr":
+#           {"model":
+#                [("lr", LogisticRegression(solver="saga",
+#                    penalty="elasticnet", max_iter=200))],          
+#            "space":
+#                {"lr__C":hp.uniform("lr__C",10**-2,10**1),
+#                 "lr__l1_ratio":hp.uniform("lr__l1_ratio",0,1)},
+#            "preprocessing":"smooth",
+#           "type":"standard"},
     
 #     "svm_lin":
 #           {"model":
@@ -496,27 +499,27 @@ models = {
 #          "preprocessing":"tree",
 #          "type":"standard"},
     
-#     "combinet":
-#          {"model":
-#               [("combinet", CombiNet())],
-#            "space":
-#                {
-#                 "combinet__se_layers":hp.randint("combinet__se_layers",1,5),
-#                 "combinet__se_units":hp.randint("combinet__se_units",2**5,2**9),
-#                 "combinet__re_layers":hp.randint("combinet__re_layers",1,10),
-#                 "combinet__re_units":hp.randint("combinet__re_units",2**5,2**8),                
-#                 "combinet__ce_layers":hp.randint("combinet__ce_layers",1,10),
-#                 "combinet__ce_units":hp.randint("combinet__ce_units",2**5,2**8), 
-#                 "combinet__cc_units":hp.randint("combinet__cc_units",2**5,2**7), 
-#                 "combinet__activation":hp.choice("combinet__activation",
-#                     ["selu", keras.layers.LeakyReLU()]),
-#                 "combinet__batch_size":hp.randint("combinet__batch_size",2**3,2**6),
-#                 "combinet__epochs":hp.randint("combinet__epochs",10**2,10**3),   
-#                 "combinet__optimizer__learning_rate":hp.uniform("combinet__optimizer__learning_rate", 10**-5,10**-3),
-#                 "combinet__optimizer":hp.choice("mlp__optimizer",["sgd", "adam", "rmsprop"])
-#                },
-#          "preprocessing":"smooth",
-#          "type":"multi-output"},
+    "combinet":
+         {"model":
+              [("combinet", CombiNet())],
+           "space":
+               {
+                "combinet__se_layers":hp.randint("combinet__se_layers",1,5),
+                "combinet__se_units":hp.randint("combinet__se_units",2**5,2**9),
+                "combinet__re_layers":hp.randint("combinet__re_layers",1,10),
+                "combinet__re_units":hp.randint("combinet__re_units",2**5,2**8),                
+                "combinet__ce_layers":hp.randint("combinet__ce_layers",1,10),
+                "combinet__ce_units":hp.randint("combinet__ce_units",2**5,2**8), 
+                "combinet__cc_units":hp.randint("combinet__cc_units",2**5,2**7), 
+                "combinet__activation":hp.choice("combinet__activation",
+                    ["selu", keras.layers.LeakyReLU()]),
+                "combinet__batch_size":hp.randint("combinet__batch_size",2**3,2**6),
+                "combinet__epochs":hp.randint("combinet__epochs",10**2,10**3),   
+                "combinet__optimizer__learning_rate":hp.uniform("combinet__optimizer__learning_rate", 10**-5,10**-3),
+                "combinet__optimizer":hp.choice("mlp__optimizer",["sgd", "adam", "rmsprop"])
+               },
+         "preprocessing":"smooth",
+         "type":"multi-output"},
     
 }
 
