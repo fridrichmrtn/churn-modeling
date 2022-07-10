@@ -85,23 +85,14 @@ def _construct_customer_model(dataset_name, events, split_time,
 #
 ##
 ### SPLIT, SAVE, AND UTILS
-
-def remove_customer_model(dataset_name):
-    #data_path = f"dbfs:/mnt/{dataset_name}/delta/customer_model"
-    spark.sql("DROP TABLE IF EXISTS "\
-        + f"churndb.{dataset_name}_customer_model")
-    
-def load_customer_model(dataset_name):
-    return spark.table(f"churndb.{dataset_name}_customer_model")        
-    
+        
 def split_save_customer_model(dataset_name, week_steps=11,
     week_target=4, overwrite=True):
     import pyspark.sql.functions as f
+    from pyspark.sql.window import Window
     from dateutil.relativedelta import relativedelta
     data_path = f"dbfs:/mnt/{dataset_name}/delta/"
     
-    if overwrite:
-        remove_customer_model(dataset_name)    
     # do the steps  
     events = spark.read.format("delta").load(data_path+"events")#.sample(fraction=.1)
     max_date = events.agg(f.to_date(f.max(f.col("event_time"))).alias("mdt"))\
@@ -110,8 +101,24 @@ def split_save_customer_model(dataset_name, week_steps=11,
         # add some logs/prints
         temp_max_date = max_date+relativedelta(days=-(7*week_step))
         temp_split_date = temp_max_date+relativedelta(days=-(7*week_target))
-        customer_model = _construct_customer_model(dataset_name,
-            events.where(f.col("event_time")<=temp_max_date),
-            temp_split_date, week_step, week_target)
-        customer_model.write.format("delta").mode("append")\
-            .saveAsTable(f"churndb.{dataset_name}_customer_model")
+        temp_customer_model = _construct_customer_model(dataset_name,
+                events.where(f.col("event_time")<=temp_max_date),
+                    temp_split_date, week_step, week_target)
+        if "customer_model" not in locals():
+            customer_model = temp_customer_model
+        else:
+            customer_model = customer_model.union(temp_customer_model)
+    # add row_id
+    customer_model = customer_model.withColumn("row_id",f.row_number()\
+        .over(Window.orderBy(f.monotonically_increasing_id())))
+    
+    # flush it
+    mode = "append"
+    if overwrite:
+        spark.sql("DROP TABLE IF EXISTS "\
+            + f"churndb.{dataset_name}_customer_model")      
+        mode = "overwrite"
+    customer_model.write.format("delta").mode(mode)\
+        .saveAsTable(f"churndb.{dataset_name}_customer_model")
+    
+
