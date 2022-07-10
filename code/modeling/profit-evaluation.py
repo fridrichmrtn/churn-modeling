@@ -117,25 +117,28 @@ def plot_simulated_profit(sp):
 ##
 ### EVALUATION
 
-def _evaluate_predictions(df, config):
-    # standard metrics
-    from sklearn.metrics import accuracy_score, precision_score
-    from sklearn.metrics import recall_score, f1_score, roc_auc_score
+def _evaluate_predictions(df, config=None):
+    import numpy as np
     import pandas as pd
-    metrics = {m.__name__:m for m in\
+    from sklearn.metrics import (accuracy_score,
+        precision_score,recall_score, f1_score, roc_auc_score,
+        r2_score, mean_squared_error)
+    
+    
+    class_metrics = {m.__name__:m for m in\
         [accuracy_score, precision_score, recall_score, f1_score, roc_auc_score]}
-    y = df["y"]
-    predicted = df["y_pred"]
-    predicted_proba = df["y_pred_proba"]
-    result_dict ={}
-    for n,f in metrics.items():
-        if "roc_auc" in n:
-            result_dict[n] = f(y, predicted_proba)
-        else:
-            result_dict[n] = f(y, predicted)
-    sp = get_simulated_profit(df, config)
-    profit_dict = get_campaign_profit(sp)
-    return pd.Series({**result_dict, **profit_dict})
+    reg_metrics = {m.__name__:m for m in\
+        [r2_score, mean_squared_error]}
+
+    class_dict = {n:f(df["target_event"], df["y_pred_event_proba"]) if "roc_auc" in n\
+        else f(df["target_event"], df["y_pred_event"]) for n,f in class_metrics.items()}
+    reg_dict = {n:f(df["target_cap"],df["y_pred_cap"]) if df["y_pred_cap"].isnull().sum()==0\
+        else np.nan for n, f in reg_metrics.items()}
+            
+            
+    #sp = get_simulated_profit(df, config)
+    #profit_dict = get_campaign_profit(sp)
+    return pd.Series({**class_dict, **reg_dict})
 
 # COMMAND ----------
 
@@ -238,3 +241,36 @@ predictions = spark.table(f"churndb.{dataset_name}_predictions").toPandas()
 predictions = predictions[((predictions.week_step==1))&(predictions.type=="test")&(predictions["pipe"]=="hgb")]
 sp = get_simulated_profit(predictions, profit_simulation_config["retailrocket"])
 plot_simulated_profit(sp)
+
+# COMMAND ----------
+
+import pyspark.sql.functions as f
+
+# load
+dataset_name = "retailrocket"
+customer_model = spark.table(f"churndb.{dataset_name}_customer_model")
+predictions = spark.table(f"churndb.{dataset_name}_predictions")#.toPandas()
+
+# put it together
+prev_target_cap = customer_model.withColumn("week_step", f.col("week_step")-1)\
+    .withColumnRenamed("target_cap", "prev_target_cap")\
+        .select("user_id", "week_step", "prev_target_cap")
+observations = customer_model.join(prev_target_cap,
+    on=["user_id", "week_step"], how="left").fillna(0)\
+        .select("row_id", "target_event", "target_cap", "prev_target_cap")
+
+predictions = predictions.join(observations, on=["row_id"], how="left").toPandas()
+evaluation = predictions.groupby(["pipe", "type", "week_step"], as_index=False)\
+    .apply(_evaluate_predictions)
+
+# COMMAND ----------
+
+evaluation[evaluation["pipe"]=="combinet"]
+
+# COMMAND ----------
+
+evaluation[evaluation["pipe"]=="mlp"]
+
+# COMMAND ----------
+
+# FIX THE CALIBRATION PART!
