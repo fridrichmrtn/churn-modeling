@@ -34,6 +34,8 @@ def _train_test_dict(X, y, test_size, seed):
     
     if len(y.shape)>1:
         y_strata = y[:,0]
+    else:
+        y_strata = y
         
     X_train, X_test, y_train, y_test = train_test_split(X, y,
         test_size=test_size, stratify=y_strata, random_state=seed) 
@@ -41,6 +43,7 @@ def _train_test_dict(X, y, test_size, seed):
         "test":{"X":X_test, "y":y_test}}
     
 def _get_class_perf(model, X, y):
+    import numpy as np
     from sklearn.metrics import (accuracy_score, precision_score,
         recall_score, f1_score, roc_auc_score)
 
@@ -56,12 +59,13 @@ def _get_class_perf(model, X, y):
                 predicted_proba = model.predict_proba(X)[:,1]
                 results[n] = f(y, predicted_proba)
             else:
-                results[n] = None
+                results[n] = np.nan
         else:
             results[n] = f(y, predicted)
     return results
 
 def _get_reg_perf(model, X, y):
+    import numpy as np
     from sklearn.metrics import r2_score, mean_squared_error
     
     metrics = {m.__name__:m for m in\
@@ -71,7 +75,7 @@ def _get_reg_perf(model, X, y):
         predicted = model.predict(X, scope="regression")
         results = {n:f(y, predicted) for n,f in metrics.items()}
     else:
-        results ={n:None for n,f in metrics.items()}
+        results ={n:np.nan for n,f in metrics.items()}
     return results
 
 def _get_performance(model, X, y):
@@ -79,23 +83,23 @@ def _get_performance(model, X, y):
     reg_metrics = _get_reg_perf(model, X, y)
     return dict(class_metrics, **reg_metrics)
 
-def _evaluate_hyperopt(params, pipe, X, y, seed):
+def _evaluate_hyperopt(params, model, X, y, seed):
     from hyperopt import STATUS_OK
     from sklearn.model_selection import train_test_split
     from scipy.stats import hmean
   
     data_dict = _train_test_dict(X, y, .4, seed)
-    pipe.set_params(**params)
-    pipe.fit(data_dict["train"]["X"], data_dict["train"]["y"])
+    model.set_params(**params)
+    model.fit(data_dict["train"]["X"], data_dict["train"]["y"])
     metrics = {n+"_"+m:v for n, data in data_dict.items()
-        for m,v in _get_performance(pipe, data["X"], data["y"]).items()}
+        for m,v in _get_performance(model, data["X"], data["y"]).items()}
     
     if len(y.shape)>1:
-        loss = hmean([metrics["test_f1_score"], metrics["test_r2_score"]])
+        test_r2_score = np.maximum(metrics["test_r2_score"],10**-6)
+        loss = hmean([metrics["test_f1_score"], test_r2_score])
     else:
         loss = metrics["test_f1_score"]
     return {"loss":-loss, "status":STATUS_OK}
-
 
 def _optimize_pipeline(data, pipe):
     import mlflow
@@ -110,10 +114,10 @@ def _optimize_pipeline(data, pipe):
     with mlflow.start_run() as run:
         space_optimized = fmin(
             fn=partial(_evaluate_hyperopt,
-                X=X, y=y, pipe=pipe["steps"],\
+                X=X, y=y, model=pipe["steps"],\
                     seed=hyperopt_config["seed"]),
             space=pipe["space"], max_evals=hyperopt_config["max_evals"], 
-            trials=hyperopt_config["trials"](parallelism=5), algo=hyperopt_config["algo"])
+            trials=hyperopt_config["trials"](parallelism=6), algo=hyperopt_config["algo"])
     pipe["steps"] =  pipe["steps"].set_params(
         **space_eval(pipe["space"], space_optimized))
     return pipe
