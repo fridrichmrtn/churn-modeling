@@ -167,7 +167,7 @@ from sklearn.calibration import  _SigmoidCalibration
 from sklearn.isotonic import IsotonicRegression
 
 class MultiOutputCalibrationCV(BaseEstimator):
-    def __init__(self, base_estimator, method="isotonic", cv=3):
+    def __init__(self, base_estimator, method="sigmoid", cv=3):
         self.base_estimator = base_estimator
         self.method = method
         self.cv = cv
@@ -175,7 +175,7 @@ class MultiOutputCalibrationCV(BaseEstimator):
     def fit(self, X, y):
         calibrated_pairs = []
         
-        scv = StratifiedKFold(n_splits=2)
+        scv = StratifiedKFold(n_splits=self.cv)
         for train_index, test_index in scv.split(X, y[:,0]):
             X_train, X_test = X[train_index], X[test_index]
             y_train, y_test = y[train_index], y[test_index]
@@ -188,10 +188,10 @@ class MultiOutputCalibrationCV(BaseEstimator):
             # fit calibrator
             if self.method=="isotonic":
                 calibrator = IsotonicRegression(y_min=0,y_max=1, out_of_bounds="clip")
-                calibrator.fit(y_pred[:,1].T, y_test[:,0])
+                calibrator.fit(y_pred[:,1], y_test[:,0])
             if self.method=="sigmoid":
                 calibrator = _SigmoidCalibration()
-                calibrator.fit(y_pred[:,1].T, y_test[:,0])
+                calibrator.fit(y_pred[:,1], y_test[:,0])
             calibrated_pairs.append((base_estimator, calibrator))
         self.calibrated_pairs = calibrated_pairs
         return self
@@ -315,23 +315,27 @@ class CombiNet(BaseWrapper):
         fe = inp
         for i in range(self.se_layers):
             fe = Dense(self.se_units, self.activation,
-                kernel_initializer=weight_init)(fe)
+                kernel_initializer=weight_init,
+                kernel_regularizer="l2")(fe)
             fe = BatchNormalization()(fe)
         # regression branch
         re = fe
         for i in range(self.re_layers):
             re = Dense(self.re_units, self.activation,
-                kernel_initializer=weight_init)(re)
+                kernel_initializer=weight_init,
+                kernel_regularizer="l2")(re)
             re = BatchNormalization()(re)
         rr_head = Dense(1,"linear")(re)
         # classification branch
         ce = fe
         for i in range(self.ce_layers):
             ce = Dense(self.ce_units, self.activation,
-                kernel_initializer=weight_init)(ce)
+                kernel_initializer=weight_init,
+                kernel_regularizer="l2")(ce)
             ce = BatchNormalization()(ce)
         cc = Dense(self.cc_units, self.activation,
-            kernel_initializer=weight_init)(concatenate([ce, re]))
+            kernel_initializer=weight_init,
+            kernel_regularizer="l2")(concatenate([ce, re]))
         cc = BatchNormalization()(cc)
         cc_head = Dense(2, "softmax")(cc)
 
@@ -368,7 +372,8 @@ from sklearn.preprocessing import RobustScaler, QuantileTransformer, PowerTransf
 from sklearn.calibration import CalibratedClassifierCV
 
 scaling = [RobustScaler(), QuantileTransformer(), PowerTransformer()]
-sampling = [_RandomOverSampler(sampling_strategy="auto"), _RandomUnderSampler(sampling_strategy="auto"),"passthrough"]
+#sampling = [_RandomOverSampler(sampling_strategy="auto"), _RandomUnderSampler(sampling_strategy="auto"),"passthrough"]
+sampling = [_RandomOverSampler(sampling_strategy="auto")]
 
 preprocessing = {
     "smooth":
@@ -376,7 +381,7 @@ preprocessing = {
             [("variance_filter", VarianceThreshold()),
             ("data_scaler", PowerTransformer()),
             ("feature_selector", HierarchicalFeatureSelector()),
-            ("data_sampler", _RandomUnderSampler(sampling_strategy="auto"))],
+            ("data_sampler", _RandomOverSampler(sampling_strategy="auto"))],
         "space":
             {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-1, 5*10**1),
             "data_scaler":hp.choice("data_scaler", scaling),
@@ -409,95 +414,95 @@ from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassif
 from lightgbm import LGBMClassifier
 
 models = {
-    "lr":
-          {"model":
-               [("lr", LogisticRegression(solver="saga",
-                   penalty="elasticnet", max_iter=200))],          
-           "space":
-               {"lr__C":hp.uniform("lr__C",10**-2,10**1),
-                "lr__l1_ratio":hp.uniform("lr__l1_ratio",0,1)},
-           "preprocessing":"smooth",
-          "type":"standard"},
+#     "lr":
+#           {"model":
+#                [("lr", LogisticRegression(solver="saga",
+#                    penalty="elasticnet", max_iter=200))],          
+#            "space":
+#                {"lr__C":hp.uniform("lr__C",10**-2,10**1),
+#                 "lr__l1_ratio":hp.uniform("lr__l1_ratio",0,1)},
+#            "preprocessing":"smooth",
+#           "type":"standard"},
     
-    "svm_lin":
-          {"model":
-               [("svm_lin", LinearSVC(dual=False))],
-           "space":
-               {"svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1),
-                "svm_lin__penalty":hp.choice("svm_lin__penalty",["l1","l2"])},
-          "preprocessing":"smooth",
-          "type":"standard"},
+#     "svm_lin":
+#           {"model":
+#                [("svm_lin", LinearSVC(dual=False))],
+#            "space":
+#                {"svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1),
+#                 "svm_lin__penalty":hp.choice("svm_lin__penalty",["l1","l2"])},
+#           "preprocessing":"smooth",
+#           "type":"standard"},
     
-    "svm_rbf":
-          {"model":
-               [("rbf", Nystroem()),
-                ("svm_lin", LinearSVC(dual=False))],
-           "space":
-               {"rbf__n_components":hp.randint("rbf__n_components",20,100),
-                "svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1),
-                "svm_lin__penalty":hp.choice("svm_lin__penalty",["l1","l2"])},
-          "preprocessing":"smooth",
-          "type":"standard"},
+#     "svm_rbf":
+#           {"model":
+#                [("rbf", Nystroem()),
+#                 ("svm_lin", LinearSVC(dual=False))],
+#            "space":
+#                {"rbf__n_components":hp.randint("rbf__n_components",20,100),
+#                 "svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1),
+#                 "svm_lin__penalty":hp.choice("svm_lin__penalty",["l1","l2"])},
+#           "preprocessing":"smooth",
+#           "type":"standard"},
     
-    "mlp":
-          {"model":
-               [("mlp", MLPClassifier())],
-           "space":
-               {"mlp__batch_size":hp.randint("mlp__batch_size",2**3,2**6),
-                "mlp__epochs":hp.randint("mlp__epochs",10**2,10**3),
-                "mlp__n_layers":hp.randint("mlp__n_layers",1,10),
-                "mlp__layer_size":hp.randint("mlp__layer_size",2**2,2**8),
-                "mlp__activation":hp.choice("mlp__activation",
-                    ["tanh", "sigmoid", "relu", keras.layers.LeakyReLU()]),
-                "mlp__optimizer__learning_rate":hp.uniform("mlp__optimizer__learning_rate", 10**-5,10**-3),
-                "mlp__optimizer":hp.choice("mlp__optimizer",["sgd", "adam", "rmsprop"])},
-          "preprocessing":"smooth",
-          "type":"standard"},
+#     "mlp":
+#           {"model":
+#                [("mlp", MLPClassifier())],
+#            "space":
+#                {"mlp__batch_size":hp.randint("mlp__batch_size",2**3,2**6),
+#                 "mlp__epochs":hp.randint("mlp__epochs",10**2,10**3),
+#                 "mlp__n_layers":hp.randint("mlp__n_layers",1,10),
+#                 "mlp__layer_size":hp.randint("mlp__layer_size",2**2,2**8),
+#                 "mlp__activation":hp.choice("mlp__activation",
+#                     ["tanh", "sigmoid", "relu", keras.layers.LeakyReLU()]),
+#                 "mlp__optimizer__learning_rate":hp.uniform("mlp__optimizer__learning_rate", 10**-5,10**-3),
+#                 "mlp__optimizer":hp.choice("mlp__optimizer",["sgd", "adam", "rmsprop"])},
+#           "preprocessing":"smooth",
+#           "type":"standard"},
     
-    "dt":
-          {"model":
-               [("dt", DecisionTreeClassifier())],
-           "space":
-               {"dt__max_depth":hp.randint("dt__max_depth",2,30),
-                "dt__min_samples_split":hp.randint("dt__min_samples_split",10**1,2*10**2),
-                "dt__min_samples_leaf":hp.randint("dt__min_samples_leaf",1,100),
-                #"dt__ccp_alpha":hp.uniform("dt__base_estimator__ccp_alpha",0,1),
-                "dt__min_impurity_decrease":hp.uniform("dt__min_impurity_decrease",0,.05),
-                "dt__min_weight_fraction_leaf":hp.uniform("dt__min_weight_fraction_leaf",0,.05),
-               },
-          "preprocessing":"tree",
-          "type":"standard"},
+#     "dt":
+#           {"model":
+#                [("dt", DecisionTreeClassifier())],
+#            "space":
+#                {"dt__max_depth":hp.randint("dt__max_depth",2,30),
+#                 "dt__min_samples_split":hp.randint("dt__min_samples_split",10**1,2*10**2),
+#                 "dt__min_samples_leaf":hp.randint("dt__min_samples_leaf",1,100),
+#                 #"dt__ccp_alpha":hp.uniform("dt__base_estimator__ccp_alpha",0,1),
+#                 "dt__min_impurity_decrease":hp.uniform("dt__min_impurity_decrease",0,.05),
+#                 "dt__min_weight_fraction_leaf":hp.uniform("dt__min_weight_fraction_leaf",0,.05),
+#                },
+#           "preprocessing":"tree",
+#           "type":"standard"},
     
-    "rf":
-          {"model":
-               [("rf", RandomForestClassifier())],
-           "space":
-               {"rf__n_estimators":hp.randint("rf__n_estimators",25,500),
-                "rf__max_features":hp.uniform("rf__max_features",0.1,.7),
-                "rf__max_depth":hp.randint("rf__max_depth",2,30),
-                "rf__min_samples_split":hp.randint("rf__min_samples_split",10**1,2*10**2),
-                "rf__min_samples_leaf":hp.randint("rf__min_samples_leaf",1,100),
-                #"dt__ccp_alpha":hp.uniform("dt__ccp_alpha",0,0.05),
-                "rf__min_impurity_decrease":hp.uniform("rf__min_impurity_decrease",0,.05),
-                "rf__min_weight_fraction_leaf":hp.uniform("rf__min_weight_fraction_leaf",0,.05),
-               },
-          "preprocessing":"tree",
-          "type":"standard"},
+#     "rf":
+#           {"model":
+#                [("rf", RandomForestClassifier())],
+#            "space":
+#                {"rf__n_estimators":hp.randint("rf__n_estimators",25,500),
+#                 "rf__max_features":hp.uniform("rf__max_features",0.1,.7),
+#                 "rf__max_depth":hp.randint("rf__max_depth",2,30),
+#                 "rf__min_samples_split":hp.randint("rf__min_samples_split",10**1,2*10**2),
+#                 "rf__min_samples_leaf":hp.randint("rf__min_samples_leaf",1,100),
+#                 #"dt__ccp_alpha":hp.uniform("dt__ccp_alpha",0,0.05),
+#                 "rf__min_impurity_decrease":hp.uniform("rf__min_impurity_decrease",0,.05),
+#                 "rf__min_weight_fraction_leaf":hp.uniform("rf__min_weight_fraction_leaf",0,.05),
+#                },
+#           "preprocessing":"tree",
+#           "type":"standard"},
     
-   "hgb":
-         {"model":
-              [("hgb", HistGradientBoostingClassifier())],
-          "space":
-              {
-               "hgb__learning_rate":hp.uniform("hgb__learning_rate",0.01,.15),
-               "hgb__max_iter":hp.randint("hgb__max_iter",25,500),
-               "hgb__max_leaf_nodes":hp.randint("hgb__max_leaf_nodes",5**2,5**3),
-               "hgb__max_depth":hp.randint("hgb__max_depth",2,30),
-               "hgb__min_samples_leaf":hp.randint("hgb__min_samples_leaf",1,100),
-               "hgb__l2_regularization":hp.uniform("hgb__l2_regularization",0,10**2),                
-       },
-         "preprocessing":"tree",
-         "type":"standard"},
+#    "hgb":
+#          {"model":
+#               [("hgb", HistGradientBoostingClassifier())],
+#           "space":
+#               {
+#                "hgb__learning_rate":hp.uniform("hgb__learning_rate",0.01,.15),
+#                "hgb__max_iter":hp.randint("hgb__max_iter",25,500),
+#                "hgb__max_leaf_nodes":hp.randint("hgb__max_leaf_nodes",5**2,5**3),
+#                "hgb__max_depth":hp.randint("hgb__max_depth",2,30),
+#                "hgb__min_samples_leaf":hp.randint("hgb__min_samples_leaf",1,100),
+#                "hgb__l2_regularization":hp.uniform("hgb__l2_regularization",0,10**2),                
+#        },
+#          "preprocessing":"tree",
+#          "type":"standard"},
     
     "combinet":
          {"model":
@@ -506,14 +511,14 @@ models = {
                {
                 "combinet__se_layers":hp.randint("combinet__se_layers",1,5),
                 "combinet__se_units":hp.randint("combinet__se_units",2**5,2**9),
-                "combinet__re_layers":hp.randint("combinet__re_layers",1,10),
-                "combinet__re_units":hp.randint("combinet__re_units",2**5,2**8),                
-                "combinet__ce_layers":hp.randint("combinet__ce_layers",1,10),
-                "combinet__ce_units":hp.randint("combinet__ce_units",2**5,2**8), 
-                "combinet__cc_units":hp.randint("combinet__cc_units",2**5,2**7), 
+                "combinet__re_layers":hp.randint("combinet__re_layers",1,5),
+                "combinet__re_units":hp.randint("combinet__re_units",2**4,2**7),                
+                "combinet__ce_layers":hp.randint("combinet__ce_layers",1,5),
+                "combinet__ce_units":hp.randint("combinet__ce_units",2**4,2**7), 
+                "combinet__cc_units":hp.randint("combinet__cc_units",2**4,2**6), 
                 "combinet__activation":hp.choice("combinet__activation",
                     ["selu", keras.layers.LeakyReLU()]),
-                "combinet__batch_size":hp.randint("combinet__batch_size",2**3,2**6),
+                "combinet__batch_size":hp.randint("combinet__batch_size",2**3,2**7),
                 "combinet__epochs":hp.randint("combinet__epochs",10**2,10**3),   
                 "combinet__optimizer__learning_rate":hp.uniform("combinet__optimizer__learning_rate", 10**-5,10**-3),
                 "combinet__optimizer":hp.choice("mlp__optimizer",["sgd", "adam", "rmsprop"])
