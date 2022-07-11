@@ -64,7 +64,7 @@ def get_simulated_profit(predictions, config):
     delta = config["delta"]
     psi = config["psi"]
     n_iter=config["n_iter"]
-    seed = config["seed"]    
+    seed = config["seed"]
     
     np.random.seed(seed)
     n_users = predictions.user_id.nunique()
@@ -75,10 +75,10 @@ def get_simulated_profit(predictions, config):
             "gamma":np.random.beta(gamma["alpha"], gamma["beta"], size=n_users),
             "psi":np.random.beta(psi["alpha"], psi["beta"], size=n_users)})
         temp = predictions.merge(gamma_psi, on=["user_id"])
-        temp["ecp"] = (temp["y_pred_proba"] * temp["gamma"]*(temp["cap"]-delta)
-            + (1-temp["y_pred_proba"])*(-temp["psi"]*delta))
-        temp["acp"] = (temp["y"]*temp["gamma"]*(temp["cap"]-delta)
-            + (1-temp["y"])*(-temp["psi"]*delta))
+        temp["ecp"] = (temp["y_pred_event_proba"] * temp["gamma"]*(temp["expected_cap"]-delta)
+            + (1-temp["y_pred_event_proba"])*(-temp["psi"]*delta))
+        temp["acp"] = (temp["target_event"]*temp["gamma"]*(temp["target_cap"]-delta)
+            + (1-temp["target_event"])*(-temp["psi"]*delta))
         # NOTE: OPTIMIZE DTYPES
         sp.append(temp.loc[:,["ecp", "acp"]])
     sp = pd.concat(sp)
@@ -117,7 +117,7 @@ def plot_simulated_profit(sp):
 ##
 ### EVALUATION
 
-def _evaluate_predictions(df, config=None):
+def _evaluate_predictions(df, config):
     import numpy as np
     import pandas as pd
     from sklearn.metrics import (accuracy_score,
@@ -136,9 +136,9 @@ def _evaluate_predictions(df, config=None):
         else np.nan for n, f in reg_metrics.items()}
             
             
-    #sp = get_simulated_profit(df, config)
-    #profit_dict = get_campaign_profit(sp)
-    return pd.Series({**class_dict, **reg_dict})
+    sp = get_simulated_profit(df, config)
+    profit_dict = get_campaign_profit(sp)
+    return pd.Series({**class_dict, **reg_dict, **profit_dict})
 
 # COMMAND ----------
 
@@ -209,6 +209,8 @@ def plot_bias_variance(df, metrics, figsize=(16,5)):
 
 # COMMAND ----------
 
+import pyspark.sql.functions as f
+
 profit_simulation_config = {"retailrocket":{
     "gamma":{"alpha":22.3, "beta":200},
     #"gamma":{"alpha":20.5, "beta":113},
@@ -216,35 +218,6 @@ profit_simulation_config = {"retailrocket":{
     "psi":{"alpha":9, "beta":1},
     "n_iter":100,
     "seed":1}}
-
-dataset_name = "retailrocket"
-predictions = spark.table(f"churndb.{dataset_name}_predictions").toPandas()
-evaluation = predictions.groupby(["pipe", "type", "week_step"], as_index=False)\
-    .apply(_evaluate_predictions, profit_simulation_config["retailrocket"])
-
-melted_evaluation = evaluation.melt(id_vars=["type","week_step", "pipe"],
-    var_name="metric", value_name="value")
-
-display(get_ci(melted_evaluation).fillna(0))
-display(get_tt(melted_evaluation))
-
-metrics = {"accuracy_score":{"label":"acc", "xlim":(0,1)},
-    "f1_score":{"label":"f1", "xlim":(0,1)},
-    "roc_auc_score":{"label":"auc", "xlim":(0,1)}}    
-plot_bv(melted_evaluation, metrics=metrics)  
-
-# COMMAND ----------
-
-
-dataset_name = "retailrocket"
-predictions = spark.table(f"churndb.{dataset_name}_predictions").toPandas()
-predictions = predictions[((predictions.week_step==1))&(predictions.type=="test")&(predictions["pipe"]=="hgb")]
-sp = get_simulated_profit(predictions, profit_simulation_config["retailrocket"])
-plot_simulated_profit(sp)
-
-# COMMAND ----------
-
-import pyspark.sql.functions as f
 
 # load
 dataset_name = "retailrocket"
@@ -260,17 +233,37 @@ observations = customer_model.join(prev_target_cap,
         .select("row_id", "target_event", "target_cap", "prev_target_cap")
 
 predictions = predictions.join(observations, on=["row_id"], how="left").toPandas()
+predictions["expected_cap"] = predictions[["y_pred_cap", "prev_target_cap"]]\
+    .bfill(axis=1).iloc[:,0]
+    
 evaluation = predictions.groupby(["pipe", "type", "week_step"], as_index=False)\
-    .apply(_evaluate_predictions)
+    .apply(_evaluate_predictions, profit_simulation_config["retailrocket"])
+
+melted_evaluation = evaluation.melt(id_vars=["type","week_step", "pipe"],
+    var_name="metric", value_name="value")
+
+display(get_ci(melted_evaluation).fillna(0))
+display(get_tt(melted_evaluation))
+
+metrics = {"accuracy_score":{"label":"acc", "xlim":(0,1)},
+    "f1_score":{"label":"f1", "xlim":(0,1)},
+    "roc_auc_score":{"label":"auc", "xlim":(0,1)}}    
+plot_bias_variance(melted_evaluation, metrics=metrics)  
 
 # COMMAND ----------
 
-evaluation[evaluation["pipe"]=="combinet"]
+melted_evaluation[melted_evaluation["pipe"]=="combinet"]
 
 # COMMAND ----------
 
-evaluation[evaluation["pipe"]=="mlp"]
+melted_evaluation[(melted_evaluation["pipe"]=="combinet") & (melted_evaluation.week_step==1)\
+    & (melted_evaluation["type"]=="test")]
 
 # COMMAND ----------
 
-# FIX THE CALIBRATION PART!
+melted_evaluation[(melted_evaluation["pipe"]=="hgb") & (melted_evaluation.week_step==1)\
+    & (melted_evaluation["type"]=="test")]
+
+# COMMAND ----------
+
+
