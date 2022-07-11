@@ -1,19 +1,25 @@
 # Databricks notebook source
-# MAGIC %run ./hyperopt
+# MAGIC %run "./utils"
 
 # COMMAND ----------
 
-def _optimize_numeric_dtypes(df):
-    import pandas as pd
-    float_cols = df.select_dtypes("float").columns
-    int_cols = df.select_dtypes("integer").columns
-    df[float_cols] = df[float_cols].\
-        apply(pd.to_numeric, downcast="float")
-    df[int_cols] = df[int_cols].\
-        apply(pd.to_numeric, downcast="integer")
-    return df
+# MAGIC %run "./steps/step-spaces"
 
-# NOTE: CLASSED
+# COMMAND ----------
+
+# MAGIC %run "./hyperopt"
+
+# COMMAND ----------
+
+import numpy as np
+import pandas as pd
+import mlflow
+import pyspark.sql.functions as f
+from sklearn.base import clone
+from sklearn.model_selection import train_test_split
+
+# COMMAND ----------
+
 def _get_cols(train):
     out_multi_cols = ["user_id", "row_id", "target_event",
         "target_revenue", "week_step", "target_cap"]
@@ -24,8 +30,6 @@ def _get_cols(train):
     return (standard_cols, multi_cols)
 
 def _get_dataset(dataset_name, week_step):
-    import pyspark.sql.functions as f
-    
     data = spark.table(f"churndb.{dataset_name}_customer_model")\
         .where(f.col("week_step")>=week_step).toPandas()
     train = data[data.week_step>week_step]
@@ -33,27 +37,22 @@ def _get_dataset(dataset_name, week_step):
     standard_cols, multi_cols = _get_cols(train)
     return {
       "train":
-            {"raw":_optimize_numeric_dtypes(train),
+            {"raw":optimize_numeric_dtypes(train),
              "week_step":week_step,
              "columns":{"standard":standard_cols, "multi-output":multi_cols},
              "name":f"{dataset_name}_{week_step}"},
       "test":
-            {"raw":_optimize_numeric_dtypes(test),
+            {"raw":optimize_numeric_dtypes(test),
              "week_step":week_step,
              "columns":{"standard":standard_cols, "multi-output":multi_cols},
              "name":f"{dataset_name}_{week_step}"}}      
     
 def _fit_calibrated_pipeline(data, pipe):
-    import mlflow
-    from sklearn.base import clone
-    from sklearn.model_selection import train_test_split
-    
-    X, y = _get_Xy(data, pipe)    
+    X, y = get_Xy(data, pipe)    
     exp_name = "{}_{}_refit".format(data["name"],pipe["name"])
-    exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
+    exp_id = get_exp_id(f"/Shared/dev/{exp_name}")
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:
-        #prefit_model = pipe["steps"].fit(X_train, y_train)
         pipe["fitted"] = pipe["calibration"](pipe["steps"],
             cv=3, method="sigmoid").fit(X, y)
         mlflow.sklearn.log_model(pipe["fitted"],
@@ -62,7 +61,7 @@ def _fit_calibrated_pipeline(data, pipe):
 
 def _evaluate_pipeline(data, pipe):
     # evaluate & push into the delta
-    X, y = _get_Xy(data, pipe) 
+    X, y = get_Xy(data, pipe) 
     dataset_name = data["train"]["name"].split("_")[0]
     pipe["results"] = pd.DataFrame([dict(_get_performance(
         pipe["fitted"], v["X"], v["y"]),
@@ -74,19 +73,14 @@ def _evaluate_pipeline(data, pipe):
     return pipe
 
 def _get_predictions(data, pipe):
-    import numpy as np
-    import pandas as pd
     predictions = []
-    for temp_type, temp_data in data.items():
-        
-        X, y = _get_Xy(temp_data, pipe)
+    for temp_type, temp_data in data.items():    
+        X, y = get_Xy(temp_data, pipe)
         y_pred_event = pipe["fitted"].predict(X)
         y_pred_event_proba = pipe["fitted"].predict_proba(X)[:,1]
+        y_pred_cap = np.nan
         if pipe["type"]=="multi-output":
             y_pred_cap = pipe["fitted"].predict(X, scope="regression")
-        else:
-            y_pred_cap = np.nan
-            
         predictions.append(pd.DataFrame.from_dict({
             "pipe":pipe["name"],
             "type":temp_type,
@@ -96,7 +90,7 @@ def _get_predictions(data, pipe):
             "y_pred_event":y_pred_event.astype("int"),
             "y_pred_event_proba":y_pred_event_proba,
             "y_pred_cap":y_pred_cap}))
-    return _optimize_numeric_dtypes(pd.concat(predictions))
+    return optimize_numeric_dtypes(pd.concat(predictions))
 
 def _save_predictions(dataset_name, predictions):
     spark.createDataFrame(predictions)\
@@ -110,7 +104,7 @@ def glue_pipeline(dataset_name, week_range, drop_predictions=True):
     for week_step in week_range:
         data = _get_dataset(dataset_name, week_step)
         for pipe_name, pipe in pipelines.items():
-            pipe = _optimize_pipeline(data["train"], pipe)
+            pipe = optimize_pipeline(data["train"], pipe)
             pipe = _fit_calibrated_pipeline(data["train"], pipe)
             _save_predictions(dataset_name, _get_predictions(data, pipe))
     return None

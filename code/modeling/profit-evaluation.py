@@ -75,11 +75,10 @@ def get_simulated_profit(predictions, config):
             "gamma":np.random.beta(gamma["alpha"], gamma["beta"], size=n_users),
             "psi":np.random.beta(psi["alpha"], psi["beta"], size=n_users)})
         temp = predictions.merge(gamma_psi, on=["user_id"])
-        temp["ecp"] = (temp["y_pred_event_proba"] * temp["gamma"]*(temp["expected_cap"]-delta)
+        temp["ecp"] = (temp["y_pred_event_proba"]*temp["gamma"]*(temp["prev_target_cap"]-delta)
             + (1-temp["y_pred_event_proba"])*(-temp["psi"]*delta))
         temp["acp"] = (temp["target_event"]*temp["gamma"]*(temp["target_cap"]-delta)
             + (1-temp["target_event"])*(-temp["psi"]*delta))
-        # NOTE: OPTIMIZE DTYPES
         sp.append(temp.loc[:,["ecp", "acp"]])
     sp = pd.concat(sp)
     sp = sp.sort_values("ecp", ascending=False).reset_index(drop=True)
@@ -124,7 +123,6 @@ def _evaluate_predictions(df, config):
         precision_score,recall_score, f1_score, roc_auc_score,
         r2_score, mean_squared_error)
     
-    
     class_metrics = {m.__name__:m for m in\
         [accuracy_score, precision_score, recall_score, f1_score, roc_auc_score]}
     reg_metrics = {m.__name__:m for m in\
@@ -134,8 +132,7 @@ def _evaluate_predictions(df, config):
         else f(df["target_event"], df["y_pred_event"]) for n,f in class_metrics.items()}
     reg_dict = {n:f(df["target_cap"],df["y_pred_cap"]) if df["y_pred_cap"].isnull().sum()==0\
         else np.nan for n, f in reg_metrics.items()}
-            
-            
+                 
     sp = get_simulated_profit(df, config)
     profit_dict = get_campaign_profit(sp)
     return pd.Series({**class_dict, **reg_dict, **profit_dict})
@@ -212,8 +209,8 @@ def plot_bias_variance(df, metrics, figsize=(16,5)):
 import pyspark.sql.functions as f
 
 profit_simulation_config = {"retailrocket":{
-    "gamma":{"alpha":22.3, "beta":200},
-    #"gamma":{"alpha":20.5, "beta":113},
+    #"gamma":{"alpha":22.3, "beta":200},
+    "gamma":{"alpha":20.5, "beta":113},
     "delta":800,
     "psi":{"alpha":9, "beta":1},
     "n_iter":100,
@@ -233,8 +230,8 @@ observations = customer_model.join(prev_target_cap,
         .select("row_id", "target_event", "target_cap", "prev_target_cap")
 
 predictions = predictions.join(observations, on=["row_id"], how="left").toPandas()
-predictions["expected_cap"] = predictions[["y_pred_cap", "prev_target_cap"]]\
-    .bfill(axis=1).iloc[:,0]
+#predictions["expected_cap"] = predictions[["y_pred_cap", "prev_target_cap"]]\
+#    .bfill(axis=1).iloc[:,0]
     
 evaluation = predictions.groupby(["pipe", "type", "week_step"], as_index=False)\
     .apply(_evaluate_predictions, profit_simulation_config["retailrocket"])
@@ -252,18 +249,21 @@ plot_bias_variance(melted_evaluation, metrics=metrics)
 
 # COMMAND ----------
 
-melted_evaluation[melted_evaluation["pipe"]=="combinet"]
+melted_evaluation[(melted_evaluation["pipe"]=="combinet") & (melted_evaluation.type=="test") &
+    (melted_evaluation.week_step==2)]
 
 # COMMAND ----------
 
-melted_evaluation[(melted_evaluation["pipe"]=="combinet") & (melted_evaluation.week_step==1)\
+melted_evaluation[(melted_evaluation["pipe"]=="combinet") & (melted_evaluation.type=="test") &
+    (melted_evaluation.week_step==2)]
+
+# COMMAND ----------
+
+melted_evaluation[(melted_evaluation["pipe"]=="hgb") & (melted_evaluation.week_step==2)\
     & (melted_evaluation["type"]=="test")]
 
 # COMMAND ----------
 
-melted_evaluation[(melted_evaluation["pipe"]=="hgb") & (melted_evaluation.week_step==1)\
-    & (melted_evaluation["type"]=="test")]
-
-# COMMAND ----------
-
+# CHECK PREVIOUS VS ACTUAL CAP
+observations
 
