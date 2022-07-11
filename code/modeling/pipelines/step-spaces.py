@@ -171,14 +171,22 @@ class MultiOutputCalibrationCV(BaseEstimator):
         self.base_estimator = base_estimator
         self.method = method
         self.cv = cv
+        self.threshold = .5
+        
+    # threshold optimization
+    def _get_threshold(self, y,prob):
+        from sklearn.metrics import roc_curve
+        tpr, fpr, thresholds = roc_curve(y, prob)
+        scores = 2*tpr*(1-fpr)/(1+tpr-fpr)
+        return thresholds[np.argmax(scores)]        
 
     def fit(self, X, y):
         calibrated_pairs = []
-        
+        thresholds = []
         scv = StratifiedKFold(n_splits=self.cv)
         for train_index, test_index in scv.split(X, y[:,0]):
-            X_train, X_test = X[train_index], X[test_index]
-            y_train, y_test = y[train_index], y[test_index]
+            X_train, y_train  = X[train_index], y[train_index] 
+            X_test, y_test = X[test_index], y[test_index]
 
             # fit combinet
             base_estimator = clone(self.base_estimator)
@@ -187,12 +195,14 @@ class MultiOutputCalibrationCV(BaseEstimator):
         
             # fit calibrator
             if self.method=="isotonic":
-                calibrator = IsotonicRegression(y_min=0,y_max=1, out_of_bounds="clip")
-                calibrator.fit(y_pred[:,1], y_test[:,0])
+                calibrator = IsotonicRegression(out_of_bounds="clip")
             if self.method=="sigmoid":
                 calibrator = _SigmoidCalibration()
-                calibrator.fit(y_pred[:,1], y_test[:,0])
-            calibrated_pairs.append((base_estimator, calibrator))
+            calibrator.fit(y_pred[:,1].T, y_test[:,0])
+            calibrated_pairs.append((base_estimator, calibrator)) 
+            thresholds.append(self._get_threshold(y_train[:,0],
+                calibrator.predict(base_estimator.predict_proba(X_train)[:,1])))
+        self.threshold = np.mean(thresholds)
         self.calibrated_pairs = calibrated_pairs
         return self
 
@@ -201,7 +211,8 @@ class MultiOutputCalibrationCV(BaseEstimator):
         calibrated_class = np.zeros(shape=(X.shape[0], len(self.calibrated_pairs)))
         for i, calibrated_pair in enumerate(self.calibrated_pairs):
             raw_prediction = calibrated_pair[0].predict_proba(X)[:,1]
-            calibrated_class[:,i] = calibrated_pair[1].predict(raw_prediction)
+            #calibrated_class[:,i] = raw_prediction
+            calibrated_class[:,i] = calibrated_pair[1].predict(raw_prediction.T)
         calibrated_class = np.mean(calibrated_class, axis=1)
         return np.column_stack([1-calibrated_class, calibrated_class])
 
@@ -212,13 +223,12 @@ class MultiOutputCalibrationCV(BaseEstimator):
         return np.mean(calibrated_reg, axis=1)
     
     def predict_full(self, X):
-        return np.column_stack([(self.predict_proba(X)[:,1]>0.5).astype("int"),
+        return np.column_stack([(self.predict_proba(X)[:,1]>self.threshold).astype("int"),
             self.predict_reg(X)])
     
     def predict(self, X, scope="classification"):
-
         if scope=="classification":
-            return (self.predict_proba(X)[:,1]>0.5).astype("int")
+            return (self.predict_proba(X)[:,1]>self.threshold).astype("int")
         if scope=="regression":
             return self.predict_reg(X)
         if scope=="full":
@@ -281,7 +291,7 @@ class CombiNet(BaseWrapper):
         se_layers=1, se_units=256,
         re_layers=5, re_units=100,
         ce_layers=5, ce_units=100, cc_units=75,
-        epochs=10, verbose=0,
+        epochs=50, verbose=0,
         optimizer="adam", optimizer__clipvalue=1.0, **kwargs):
             super().__init__(**kwargs)
             self.activation = activation
@@ -372,8 +382,7 @@ from sklearn.preprocessing import RobustScaler, QuantileTransformer, PowerTransf
 from sklearn.calibration import CalibratedClassifierCV
 
 scaling = [RobustScaler(), QuantileTransformer(), PowerTransformer()]
-#sampling = [_RandomOverSampler(sampling_strategy="auto"), _RandomUnderSampler(sampling_strategy="auto"),"passthrough"]
-sampling = [_RandomOverSampler(sampling_strategy="auto")]
+sampling = [_RandomOverSampler(sampling_strategy="auto"), _RandomUnderSampler(sampling_strategy="auto"),"passthrough"]
 
 preprocessing = {
     "smooth":
@@ -381,7 +390,7 @@ preprocessing = {
             [("variance_filter", VarianceThreshold()),
             ("data_scaler", PowerTransformer()),
             ("feature_selector", HierarchicalFeatureSelector()),
-            ("data_sampler", _RandomOverSampler(sampling_strategy="auto"))],
+            ("data_sampler", "passthrough")],
         "space":
             {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-1, 5*10**1),
             "data_scaler":hp.choice("data_scaler", scaling),
@@ -512,9 +521,9 @@ models = {
                 "combinet__se_layers":hp.randint("combinet__se_layers",1,5),
                 "combinet__se_units":hp.randint("combinet__se_units",2**5,2**9),
                 "combinet__re_layers":hp.randint("combinet__re_layers",1,5),
-                "combinet__re_units":hp.randint("combinet__re_units",2**4,2**7),                
+                "combinet__re_units":hp.randint("combinet__re_units",2**4,2**9),                
                 "combinet__ce_layers":hp.randint("combinet__ce_layers",1,5),
-                "combinet__ce_units":hp.randint("combinet__ce_units",2**4,2**7), 
+                "combinet__ce_units":hp.randint("combinet__ce_units",2**4,2**9), 
                 "combinet__cc_units":hp.randint("combinet__cc_units",2**4,2**6), 
                 "combinet__activation":hp.choice("combinet__activation",
                     ["selu", keras.layers.LeakyReLU()]),
