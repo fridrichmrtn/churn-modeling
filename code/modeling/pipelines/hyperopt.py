@@ -17,7 +17,6 @@ hyperopt_config = {
 
 # COMMAND ----------
 
-
 #
 ##
 ### PIPELINE HYPEROPT
