@@ -13,3 +13,4 @@ keras
 scikeras
 scikit-learn
 imbalanced-learn
+lightgbm
