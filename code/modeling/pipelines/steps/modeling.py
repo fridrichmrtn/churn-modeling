@@ -19,13 +19,13 @@ from sklearn.preprocessing import OneHotEncoder, PowerTransformer, QuantileTrans
 
 class MLPClassifier(KerasClassifier):
 
-    def __init__(self, n_layers=1, layer_size=8,
+    def __init__(self, layers=1, units=8,
         activation="relu", optimizer="adam",
         #optimizer__learning_rate=10**-3,
         epochs=50, verbose=0, **kwargs,):
             super().__init__(**kwargs)
-            self.n_layers = n_layers
-            self.layer_size = layer_size
+            self.layers = layers
+            self.units = units
             self.activation = activation
             self.optimizer = optimizer
             self.epochs = epochs
@@ -51,6 +51,7 @@ class MLPClassifier(KerasClassifier):
 ### COMBINET
 
 class MultiOutputCalibrationCV(BaseEstimator):
+    
     def __init__(self, base_estimator, method="sigmoid", cv=3):
         self.base_estimator = base_estimator
         self.method = method
@@ -82,11 +83,11 @@ class MultiOutputCalibrationCV(BaseEstimator):
                 calibrator = IsotonicRegression(out_of_bounds="clip")
             if self.method=="sigmoid":
                 calibrator = _SigmoidCalibration()
-            #calibrator.fit(y_pred[:,1].T, y_test[:,0])
+            calibrator.fit(y_pred[:,1].T, y_test[:,0])
             calibrated_pairs.append((base_estimator, calibrator)) 
-            #thresholds.append(self._get_threshold(y_train[:,0],
-            #    calibrator.predict(base_estimator.predict_proba(X_train)[:,1])))
-        #self.threshold = np.median(thresholds)
+            thresholds.append(self._get_threshold(y_train[:,0],
+                calibrator.predict(base_estimator.predict_proba(X_train)[:,1])))
+        self.threshold = np.median(thresholds)
         self.calibrated_pairs = calibrated_pairs
         return self
 
