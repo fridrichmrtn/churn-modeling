@@ -11,6 +11,10 @@
 
 # COMMAND ----------
 
+# MAGIC %run "./evaluation"
+
+# COMMAND ----------
+
 import numpy as np
 import pandas as pd
 import mlflow
@@ -98,13 +102,15 @@ def _save_predictions(dataset_name, predictions):
             .saveAsTable(f"churndb.{dataset_name}_predictions")
     return None
     
-def glue_pipeline(dataset_name, week_range, drop_predictions=True):
-    if drop_predictions:
+def glue_pipeline(dataset_name, week_range, overwrite=True):
+    if overwrite:
         spark.sql(f"DROP TABLE IF EXISTS churndb.{dataset_name}_predictions;")
+        spark.sql(f"DROP TABLE IF EXISTS churndb.{dataset_name}_evaluation;")
     for week_step in week_range:
         data = _get_dataset(dataset_name, week_step)
         for pipe_name, pipe in pipelines.items():
             pipe = optimize_pipeline(data["train"], pipe)
             pipe = _fit_calibrated_pipeline(data["train"], pipe)
             _save_predictions(dataset_name, _get_predictions(data, pipe))
+    save_evaluation(dataset_name, evaluate_pipeline(dataset_name))
     return None
