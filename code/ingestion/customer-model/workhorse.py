@@ -20,14 +20,18 @@ def _get_target(events, split_time, week_target):
             f.min("event_time"))/7).alias("dr"))\
         .collect()[0]["dr"]
     target = events.select("user_id").distinct()\
-        .join((events.where(f.col("event_time")>split_time)
-            .groupBy("user_id").agg(
-                f.when(f.sum("purchase")>0,0).otherwise(1).alias("target_event"),
-                f.sum(f.col("revenue")).alias("target_revenue"))),
+        .join(
+            (events.where(f.col("event_time")>split_time)
+                .groupBy("user_id").agg(
+                     f.when(f.sum("purchase")>0,0).otherwise(1).alias("target_event"),
+                     f.sum(f.col("revenue")).alias("target_revenue"))),
             on=["user_id"], how="left")\
+            .fillna(1, subset=["target_event"])\
+            .fillna(0, subset=["target_revenue"])\
         .join(events.groupBy("user_id").agg(
                 (week_target*f.sum("profit")/n_weeks).alias("target_cap")),
-            on=["user_id"], how="left").na.fill(0)
+            on=["user_id"], how="left")\
+            .fillna(0, subset=["target_cap"])
     return target
 
 def _get_feature_events(events, split_time):
@@ -42,20 +46,17 @@ def _impute_customer_model(customer_model):
     import pyspark.sql.functions as f
     import re
     
-    # zero imputation
+    # ZERO IMP
     reg_pat = ["_lag[0-9]+$", "_ma[0-9]+$", "_stddev$"]
     zero_cols = [c for c in customer_model.columns for fc in reg_pat\
         if re.search(fc, c) is not None]
     customer_model = customer_model.fillna(0, subset=zero_cols)
-
-    # max imputation
+    # MAX IMP
     max_cols = [c for c in customer_model.columns for fc in\
         ["^inter_", "^time_to_", "_variation$"] if re.search(fc, c) is not None]
     max_expr = [f.max(c).alias(c) for c in max_cols]
     max_vals = customer_model.agg(*max_expr).toPandas().transpose().to_dict()[0]
     customer_model = customer_model.fillna(max_vals)
-    
-    # revenue imp
     interactions = ["view", "cart", "purchase"]
     operations = ["sum","mean", "min", "max"]
     zero_cols = [f"{i}_revenue_{o}" for o in operations for i in interactions]
@@ -76,7 +77,7 @@ def _construct_customer_model(dataset_name, events, split_time,
     cust_pref = get_pref_model(cust_events, dataset_name)
     # ALL TOGETHER
     customer_model = (cust_base.join(cust_pref, on=["user_id"])
-        .join(cust_target, on=["user_id"]))        
+        .join(cust_target, on=["user_id"]))         
     # IMPUTATION
     customer_model = _impute_customer_model(customer_model)
     customer_model = customer_model.withColumn("week_step", f.lit(week_step))
@@ -93,12 +94,11 @@ def split_save_customer_model(dataset_name, week_steps=11,
     from dateutil.relativedelta import relativedelta
     data_path = f"dbfs:/mnt/{dataset_name}/delta/"
     
-    # do the steps  
+    # WEEK STEPS
     events = spark.read.format("delta").load(data_path+"events")#.sample(fraction=.1)
-    max_date = events.agg(f.to_date(f.max(f.col("event_time"))).alias("mdt"))\
-        .collect()[0]["mdt"]    
+    max_date = events.agg(f.to_date(f.next_day(f.max("event_time"),"Sun")
+        -f.expr("INTERVAL 7 DAYS")).alias("mdt")).collect()[0]["mdt"]
     for week_step in range(week_steps):
-        # add some logs/prints
         temp_max_date = max_date+relativedelta(days=-(7*week_step))
         temp_split_date = temp_max_date+relativedelta(days=-(7*week_target))
         temp_customer_model = _construct_customer_model(dataset_name,
@@ -108,11 +108,10 @@ def split_save_customer_model(dataset_name, week_steps=11,
             customer_model = temp_customer_model
         else:
             customer_model = customer_model.union(temp_customer_model)
-    # add row_id
+    # ROW ID
     customer_model = customer_model.withColumn("row_id",f.row_number()\
         .over(Window.orderBy(f.monotonically_increasing_id())))
-    
-    # flush it
+    # FLUSH
     mode = "append"
     if overwrite:
         spark.sql("DROP TABLE IF EXISTS "\
@@ -120,5 +119,13 @@ def split_save_customer_model(dataset_name, week_steps=11,
         mode = "overwrite"
     customer_model.write.format("delta").mode(mode)\
         .saveAsTable(f"churndb.{dataset_name}_customer_model")
-    
 
+# COMMAND ----------
+
+# import pyspark.sql.functions as f
+# dataset_name = "retailrocket"
+# data_path = f"dbfs:/mnt/{dataset_name}/delta/"
+# events = spark.read.format("delta").load(data_path+"events").toPandas()
+# #.where(f.col("user_id")==23076).toPandas()
+# # check the price distribution
+# events.sort_values("event_time")
