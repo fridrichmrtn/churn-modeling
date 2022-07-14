@@ -95,8 +95,9 @@ def split_save_customer_model(dataset_name, week_steps=11,
     
     # do the steps  
     events = spark.read.format("delta").load(data_path+"events")#.sample(fraction=.1)
-    max_date = events.agg(f.to_date(f.max(f.col("event_time"))).alias("mdt"))\
-        .collect()[0]["mdt"]    
+    max_date = events.agg(f.to_date(f.nex_day(f.max("event_time"),"Sun")\
+        +relativedelta(days=-7)).alias("mdt")).collect()[0]["mdt"]
+    
     for week_step in range(week_steps):
         # add some logs/prints
         temp_max_date = max_date+relativedelta(days=-(7*week_step))
