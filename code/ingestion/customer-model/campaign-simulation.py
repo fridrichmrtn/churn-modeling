@@ -46,6 +46,8 @@ def add_campaign_features(customer_model, campaign_params):
     
     campaign_profit = customer_model.join(campaign_params, on=["user_id"],
         how="inner").groupby("row_id").agg(f.mean(
-            f.col("target_event")*f.col("gamma")*(f.col("target_customer_value")-f.col("delta"))
-            - (1-f.col("target_event"))*f.col("psi")*f.col("delta")).alias("actual_profit"))
+            f.col("target_event")*f.col("gamma")
+                *(f.col("target_customer_value")-f.col("delta"))
+            - (1-f.col("target_event"))*f.col("psi")
+                *f.col("delta")).alias("target_actual_profit"))
     return customer_model.join(campaign_profit, on=["row_id"])
