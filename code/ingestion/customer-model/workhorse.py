@@ -7,6 +7,18 @@
 
 # COMMAND ----------
 
+# MAGIC %run "./campaign-simulation"
+
+# COMMAND ----------
+
+import pyspark.sql.functions as f
+from pyspark.sql.window import Window
+from dateutil.relativedelta import relativedelta
+import re
+import mlflow
+
+# COMMAND ----------
+
 ### NOTE: ADD DOCSTRINGS
 
 #
@@ -14,11 +26,10 @@
 ### TARGET AND FEATURES
 
 def _get_target(events, split_time, week_target):
-    import pyspark.sql.functions as f
-    
     n_weeks = events.agg((f.datediff(f.max("event_time"),
             f.min("event_time"))/7).alias("dr"))\
         .collect()[0]["dr"]
+    
     target = events.select("user_id").distinct()\
         .join(
             (events.where(f.col("event_time")>split_time)
@@ -29,24 +40,19 @@ def _get_target(events, split_time, week_target):
             .fillna(1, subset=["target_event"])\
             .fillna(0, subset=["target_revenue"])\
         .join(events.groupBy("user_id").agg(
-                (week_target*f.sum("profit")/n_weeks).alias("target_cap")),
+                (week_target*f.sum("profit")/n_weeks).alias("target_customer_value")),
             on=["user_id"], how="left")\
-            .fillna(0, subset=["target_cap"])
+            .fillna(0, subset=["target_customer_value"])
     return target
 
 def _get_feature_events(events, split_time):
-    import pyspark.sql.functions as f
     return events.where(f.col("event_time")<=split_time)
   
 #
 ##
 ### CUSTOMER MODEL
 
-def _impute_customer_model(customer_model):
-    import pyspark.sql.functions as f
-    import re
-    
-    # ZERO IMP
+def _impute_customer_model(customer_model):   
     reg_pat = ["_lag[0-9]+$", "_ma[0-9]+$", "_stddev$"]
     zero_cols = [c for c in customer_model.columns for fc in reg_pat\
         if re.search(fc, c) is not None]
@@ -66,8 +72,6 @@ def _impute_customer_model(customer_model):
 
 def _construct_customer_model(dataset_name, events, split_time,
     week_step, week_target):
-    import pyspark.sql.functions as f
-    import mlflow    
     cust_target = _get_target(events, split_time, week_target)
     cust_events = _get_feature_events(events, split_time).persist()    
 
@@ -77,7 +81,8 @@ def _construct_customer_model(dataset_name, events, split_time,
     cust_pref = get_pref_model(cust_events, dataset_name)
     # ALL TOGETHER
     customer_model = (cust_base.join(cust_pref, on=["user_id"])
-        .join(cust_target, on=["user_id"]))         
+        .join(cust_target, on=["user_id"]))
+    #customer_model = cust_base.join(cust_target, on=["user_id"])
     # IMPUTATION
     customer_model = _impute_customer_model(customer_model)
     customer_model = customer_model.withColumn("week_step", f.lit(week_step))
@@ -89,10 +94,8 @@ def _construct_customer_model(dataset_name, events, split_time,
         
 def split_save_customer_model(dataset_name, week_steps=11,
     week_target=4, overwrite=True):
-    import pyspark.sql.functions as f
-    from pyspark.sql.window import Window
-    from dateutil.relativedelta import relativedelta
     data_path = f"dbfs:/mnt/{dataset_name}/delta/"
+
     
     # WEEK STEPS
     events = spark.read.format("delta").load(data_path+"events")#.sample(fraction=.1)
@@ -111,14 +114,25 @@ def split_save_customer_model(dataset_name, week_steps=11,
     # ROW ID
     customer_model = customer_model.withColumn("row_id",f.row_number()\
         .over(Window.orderBy(f.monotonically_increasing_id())))
+    
+    # SIMULATED PARAMS
+    campaign_params = get_campaign_params(events, dataset_name)
+    customer_model = add_campaign_features(customer_model, campaign_params)
+    
     # FLUSH
     mode = "append"
     if overwrite:
         spark.sql("DROP TABLE IF EXISTS "\
-            + f"churndb.{dataset_name}_customer_model")      
+            + f"churndb.{dataset_name}_customer_model")
+        spark.sql("DROP TABLE IF EXISTS "\
+            + f"churndb.{dataset_name}_campaign_params")    
         mode = "overwrite"
+        
     customer_model.write.format("delta").mode(mode)\
         .saveAsTable(f"churndb.{dataset_name}_customer_model")
+    campaign_params.write.format("delta").mode(mode)\
+        .saveAsTable(f"churndb.{dataset_name}_campaign_params")
+    return None
 
 # COMMAND ----------
 
