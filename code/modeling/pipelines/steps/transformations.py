@@ -5,8 +5,6 @@
 
 import numpy as np
 import pandas as pd
-from imblearn.under_sampling import RandomUnderSampler as rus
-from imblearn.over_sampling import RandomOverSampler as ros
 from scipy.stats import pearsonr
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_selection import SelectorMixin
@@ -15,38 +13,6 @@ from sklearn.random_projection import GaussianRandomProjection
 from sklearn.cluster import AgglomerativeClustering
 
 # COMMAND ----------
-
-#
-##
-### SAMPLING STRATEGIES
-
-class RandomUnderSampler(rus):
-    def __init__(self, sampling_strategy="auto"):
-        super().__init__(sampling_strategy=sampling_strategy)
-        self.y_=None
-    @reduce_y
-    def fit(self, X, y, **kwargs):
-        super().fit(X, y, **kwargs)
-        return self
-    @reduce_y
-    def fit_resample(self, X, y, **kwargs):
-        _ = super().fit_resample(X, y, **kwargs)
-        ind = self.sample_indices_
-        return (X[ind,:], self.y_[ind])
-
-class RandomOverSampler(ros):
-    def __init__(self, sampling_strategy="auto"):
-        super().__init__(sampling_strategy=sampling_strategy)
-        self.y_=None
-    @reduce_y
-    def fit(self, X, y, **kwargs):
-        super().fit(X, y, **kwargs)
-        return self
-    @reduce_y
-    def fit_resample(self, X, y, **kwargs):
-        _ = super().fit_resample(X, y, **kwargs)
-        ind = self.sample_indices_
-        return (X[ind,:], self.y_[ind])
 
 #
 ##
@@ -69,9 +35,10 @@ class HierarchicalFeatureSelector(SelectorMixin, BaseEstimator):
     def _get_cluster_assignments(self, data):
         data = data.loc[:,self.results_.feature.values]
         n_components = data.shape[1]
+        n_clusters = np.minimum(n_components, self.n_features)
         pipe = Pipeline([("rotate", _DataFrameTransposer()),
-            ("pca", GaussianRandomProjection(n_components=n_components)),
-            ("cluster", AgglomerativeClustering(n_clusters=self.n_features))])
+            ("grp", GaussianRandomProjection(n_components=n_components)),
+            ("cluster", AgglomerativeClustering(n_clusters=n_clusters))])
         return pipe.fit_predict(data)
     
     @reduce_y
@@ -87,14 +54,15 @@ class HierarchicalFeatureSelector(SelectorMixin, BaseEstimator):
         X = pd.DataFrame(X)
         self.in_features_ =  X.columns
         self.results_ = self._get_correlations(X, y)
-        if np.sum(self.results_.sf)<= self.n_features:
+        
+        if (np.sum(self.results_.sf)>0) & (np.sum(self.results_.sf)<=self.n_features):
             self.best_ = self.results_[self.results_.sf]
         else:
             self.results_["cluster"] = self._get_cluster_assignments(X)
-            self.best_ = self.results_[self.results_.sf]\
+            self.best_ = (self.results_
                 .merge(self.results_.groupby("cluster",
-                    as_index=False).abs_r.max(), on=["cluster", "abs_r"])\
-                        .drop_duplicates(["cluster", "abs_r"]).dropna()
+                    as_index=False).abs_r.max(), on=["cluster", "abs_r"])
+                    .drop_duplicates(["cluster", "abs_r"]).dropna())            
         return self
     
     def _get_support_mask(self):

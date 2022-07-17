@@ -61,43 +61,23 @@ def _fit_calibrated_pipeline(data, pipe):
     exp_id = get_exp_id(f"/Shared/dev/{exp_name}")
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:
-        pipe["fitted"] = pipe["calibration"](pipe["steps"],
-            cv=3, method="sigmoid").fit(X, y)
+        pipe["fitted"] = pipe["calibration"](pipe["steps"]).fit(X, y)
         mlflow.sklearn.log_model(pipe["fitted"],
              exp_name, registered_model_name=exp_name)
-    return pipe    
-
-def _evaluate_pipeline(data, pipe):
-    # evaluate & push into the delta
-    X, y = get_Xy(data, pipe) 
-    dataset_name = data["train"]["name"].split("_")[0]
-    pipe["results"] = pd.DataFrame([dict(_get_performance(
-        pipe["fitted"], v["X"], v["y"]),
-            **{"type":k,"week_step":v["week_step"],"pipe":pipe["name"]})
-                for k,v in data.items()]) # NOT NICE
-    spark.createDataFrame(pipe["results"])\
-        .write.format("delta").mode("append")\
-            .saveAsTable(f"churndb.{dataset_name}_performance")
     return pipe
 
 def _get_predictions(data, pipe):
     predictions = []
-    for temp_type, temp_data in data.items():    
-        X, y = get_Xy(temp_data, pipe)
-        y_pred_event = pipe["fitted"].predict(X)
-        y_pred_event_proba = pipe["fitted"].predict_proba(X)[:,1]
-        y_pred_cap = np.nan
-        if pipe["type"]=="multi-output":
-            y_pred_cap = pipe["fitted"].predict(X, scope="regression")
+    for temp_type, temp_data in data.items():
+        X, y = get_Xy(temp_data, pipe)    
         predictions.append(pd.DataFrame.from_dict({
             "pipe":pipe["name"],
-            "type":temp_type,
+            "task":pipe["task"],
+            "set_type":temp_type,
             "week_step":temp_data["week_step"],
             "user_id":temp_data["raw"]["user_id"],
             "row_id":temp_data["raw"]["row_id"],
-            "y_pred_event":y_pred_event.astype("int"),
-            "y_pred_event_proba":y_pred_event_proba,
-            "y_pred_cap":y_pred_cap}))
+            "predictions": pipe["fitted"].predict(X)}))
     return optimize_numeric_dtypes(pd.concat(predictions))
 
 def _save_predictions(dataset_name, predictions):
@@ -110,11 +90,16 @@ def glue_pipeline(dataset_name, week_range, overwrite=True):
     if overwrite:
         spark.sql(f"DROP TABLE IF EXISTS churndb.{dataset_name}_predictions;")
         spark.sql(f"DROP TABLE IF EXISTS churndb.{dataset_name}_evaluation;")
+    pipelines = construct_pipelines()
     for week_step in week_range:
         data = _get_dataset(dataset_name, week_step)
         for pipe_name, pipe in pipelines.items():
             pipe = optimize_pipeline(data["train"], pipe)
             pipe = _fit_calibrated_pipeline(data["train"], pipe)
             _save_predictions(dataset_name, _get_predictions(data, pipe))
-    save_evaluation(dataset_name, evaluate_pipeline(dataset_name))
+    #save_evaluation(dataset_name, evaluate_pipeline(dataset_name))
     return None
+
+# COMMAND ----------
+
+

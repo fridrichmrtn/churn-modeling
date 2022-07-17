@@ -4,12 +4,13 @@ import pandas as pd
 from tensorflow.keras import Sequential, Model
 from tensorflow.keras.initializers import HeNormal, LecunNormal, HeNormal
 from tensorflow.keras.layers import Input, Dense, BatchNormalization, LeakyReLU, concatenate
-from scikeras.wrappers import KerasClassifier, BaseWrapper
+from scikeras.wrappers import KerasClassifier, KerasRegressor, BaseWrapper
 from sklearn.base import BaseEstimator,TransformerMixin, clone
 from sklearn.model_selection import StratifiedKFold
-from sklearn.calibration import  _SigmoidCalibration
-from sklearn.isotonic import IsotonicRegression
 from sklearn.preprocessing import OneHotEncoder, PowerTransformer, QuantileTransformer
+from sklearn.isotonic import IsotonicRegression
+from sklearn.linear_model import ElasticNet
+from sklearn.calibration import CalibratedClassifierCV, _SigmoidCalibration
 
 # COMMAND ----------
 
@@ -43,12 +44,74 @@ class MLPClassifier(KerasClassifier):
         model.compile(loss="binary_crossentropy",
             optimizer=compile_kwargs["optimizer"])
         return model
+      
+class MLPRegressor(KerasRegressor):
+
+    def __init__(self, layers=1, units=8,
+        activation="relu", optimizer="adam",
+        #optimizer__learning_rate=10**-3,
+        epochs=50, verbose=0, **kwargs,):
+            super().__init__(**kwargs)
+            self.layers = layers
+            self.units = units
+            self.activation = activation
+            self.optimizer = optimizer
+            self.epochs = epochs
+            self.verbose = verbose
+        
+    def _keras_build_fn(self, compile_kwargs):
+        model = Sequential()
+        inp = Input(shape=(self.n_features_in_))
+        model.add(inp)
+        for i in range(self.n_layers):
+            model.add(Dense(self.layer_size,
+                activation=self.activation))
+            model.add(BatchNormalization())
+        model.add(Dense(1, activation="linear"))
+        model.compile(loss="mean_squared_error",
+            optimizer=compile_kwargs["optimizer"])
+        return model        
+
+# COMMAND ----------
+
+#
+##
+### ELASTICNET
+
+class ElasticNetC(ElasticNet):
+    def __init__(self, C=1.0, l1_ratio=0.5, **kwargs):
+        super().__init__(alpha = C, l1_ratio=l1_ratio, **kwargs)
+        self.C = C
+
+# COMMAND ----------
+
+#
+##
+### CALIBRATION
+
+class CalibratedClassifierCV(CalibratedClassifierCV):
+    def predict(self, X):
+        return self.predict_proba(X)[:,1]
+
+class CalibratedPassthrough(BaseEstimator):
+  
+    def __init__(self,base_estimator):
+        self.base_estimator = clone(base_estimator)
+        self.fitted = None
+        
+    def fit(self, X, y):
+        self.fitted = self.base_estimator.fit(X,y)
+        return self
+    
+    def predict(self, X):
+        return self.fitted.predict(X)
 
 # COMMAND ----------
 
 #
 ##
 ### COMBINET
+# NOTE: remove this in the future
 
 class MultiOutputCalibrationCV(BaseEstimator):
     

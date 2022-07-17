@@ -14,7 +14,8 @@ def reduce_y(func):
         if self.y_ is None:
             self.y_ = copy.copy(y)
         if len(y.shape)>1:
-            y = y[:,0]
+            print("shit")
+            y = y.iloc[:,0]
         return func(self, X, y, *args, **kwargs)
     return actual_reduce
 
@@ -39,12 +40,9 @@ def optimize_numeric_dtypes(df):
     return df
 
 def get_Xy(data, pipe):
-    X = data["raw"].loc[:,data["columns"][pipe["type"]]]
-    if pipe["type"]=="standard":
-        y = data["raw"]["target_event"]
-    else:
-        y = data["raw"][["target_event", "target_cap"]]
-    return (X.values, y.values)
+    X = data["raw"].loc[:, data["columns"][pipe["task"]]["X"]]                   
+    y = data["raw"].loc[:, data["columns"][pipe["task"]]["y"]]                  
+    return (X, y)
 
 #
 ##
