@@ -20,6 +20,18 @@ import mlflow
 # COMMAND ----------
 
 ### NOTE: ADD DOCSTRINGS
+### NOTE: flust_dataframe to utils?
+
+def flush_dataframe(dataframe, dataset_name, table_name,
+    overwrite=True):
+    mode = "append"
+    if overwrite:
+        spark.sql("DROP TABLE IF EXISTS "\
+            + f"churndb.{dataset_name}_{table_name}")   
+        mode ="overwrite"
+    dataframe.write.format("delta").mode(mode)\
+        .saveAsTable(f"churndb.{dataset_name}_{table_name}")
+    return None
 
 #
 ##
@@ -90,15 +102,14 @@ def _construct_customer_model(dataset_name, events, split_time,
     
 #
 ##
-### SPLIT, SAVE, AND UTILS
+###  CUSTOMER MODEL
         
-def split_save_customer_model(dataset_name, week_steps=11,
+def construct_customer_model(dataset_name, week_steps=11,
     week_target=4, overwrite=True):
     data_path = f"dbfs:/mnt/{dataset_name}/delta/"
-
     
     # WEEK STEPS
-    events = spark.read.format("delta").load(data_path+"events")#.sample(fraction=.1)
+    events = spark.read.format("delta").load(data_path+"events")
     max_date = events.agg(f.to_date(f.next_day(f.max("event_time"),"Sun")
         -f.expr("INTERVAL 7 DAYS")).alias("mdt")).collect()[0]["mdt"]
     for week_step in range(week_steps):
@@ -113,25 +124,19 @@ def split_save_customer_model(dataset_name, week_steps=11,
             customer_model = customer_model.union(temp_customer_model)
     # ROW ID
     customer_model = customer_model.withColumn("row_id",f.row_number()\
-        .over(Window.orderBy(f.monotonically_increasing_id())))
+        .over(Window.orderBy(f.monotonically_increasing_id()))).persist()
     
-    # SIMULATED PARAMS
-    campaign_params = get_campaign_params(events, dataset_name)
+    # CAMPAIGN SIMULATION
+    campaign_params = get_campaign_params(customer_model, dataset_name)
+    flush_dataframe(campaign_params,dataset_name,"campaign_params",overwrite)
     customer_model = add_campaign_features(customer_model, campaign_params)
     
+    return customer_model
+    
+def save_customer_model(customer_model, dataset_name, overwrite=True):
     # FLUSH
-    mode = "append"
-    if overwrite:
-        spark.sql("DROP TABLE IF EXISTS "\
-            + f"churndb.{dataset_name}_customer_model")
-        spark.sql("DROP TABLE IF EXISTS "\
-            + f"churndb.{dataset_name}_campaign_params")    
-        mode = "overwrite"
-        
-    customer_model.write.format("delta").mode(mode)\
-        .saveAsTable(f"churndb.{dataset_name}_customer_model")
-    campaign_params.write.format("delta").mode(mode)\
-        .saveAsTable(f"churndb.{dataset_name}_campaign_params")
+    flush_dataframe(customer_model,
+        dataset_name, "customer_model", overwrite)
     return None
 
 # COMMAND ----------
@@ -143,3 +148,55 @@ def split_save_customer_model(dataset_name, week_steps=11,
 # #.where(f.col("user_id")==23076).toPandas()
 # # check the price distribution
 # events.sort_values("event_time")
+
+# COMMAND ----------
+
+# import pyspark.sql.functions as f
+# from pyspark.sql.window import Window
+
+# overwrite=True
+# dataset_name = "retailrocket"
+# data_path = f"dbfs:/mnt/{dataset_name}/delta/"
+# customer_model = spark.table("churndb.retailrocket_customer_model").drop("target_actual_profit", "row_id")
+
+# customer_model = customer_model.withColumn("row_id",f.row_number()\
+#     .over(Window.orderBy(f.monotonically_increasing_id()))).persist()
+
+# # SIMULATED PARAMS
+# campaign_params = get_campaign_params(customer_model, dataset_name)
+# customer_model = add_campaign_features(customer_model, campaign_params)
+
+# # FLUSH
+# mode = "append"
+# if overwrite:
+#     spark.sql("DROP TABLE IF EXISTS "\
+#         + f"churndb.{dataset_name}_customer_model0")
+#     spark.sql("DROP TABLE IF EXISTS "\
+#         + f"churndb.{dataset_name}_campaign_params0")    
+#     mode = "overwrite"
+
+# customer_model.write.format("delta").mode(mode)\
+#     .saveAsTable(f"churndb.{dataset_name}_customer_model0")
+# campaign_params.write.format("delta").mode(mode)\
+#     .saveAsTable(f"churndb.{dataset_name}_campaign_params0")
+
+# COMMAND ----------
+
+# customer_model = spark.table(f"churndb.{dataset_name}_customer_model0")
+# customer_model.where(f.col("user_id")==23076).toPandas().sort_values("week_step")
+
+# COMMAND ----------
+
+# spark.table(f"churndb.{dataset_name}_customer_model").where(f.col("user_id")==23076).toPandas().sort_values("week_step")
+
+# COMMAND ----------
+
+# campaign_check = customer_model.join(campaign_params, on=["user_id"], how="inner")
+# campaign_check.withColumn("target_profit_test", f.col("target_event")*f.col("gamma")*(f.col("target_customer_value")-f.col("delta"))-(1-f.col("target_event"))*f.col("psi")*f.col("delta")).groupBy(["user_id","row_id","week_step"]).agg(f.mean(f.col("target_profit_test")).alias("target_actual_profit"))\
+#     .where(f.col("user_id")==23076).toPandas().sort_values("week_step")
+
+# COMMAND ----------
+
+# campaign_check = customer_model.join(campaign_params, on=["user_id"])
+# campaign_check.withColumn("target_profit_test", f.col("target_event")*f.col("gamma")*(f.col("target_customer_value")-f.col("delta"))-(1-f.col("target_event"))*f.col("psi")*f.col("delta")).groupBy(["row_id"]).agg(f.mean(f.col("target_profit_test")).alias("target_actual_profit"))\
+#     .where(f.col("row_id").isin([9,410,792,1154,1498,1817,2113,2379])).toPandas().sort_values("row_id")
