@@ -105,7 +105,7 @@ def _construct_customer_model(dataset_name, events, split_time,
 ###  CUSTOMER MODEL
         
 def construct_customer_model(dataset_name, week_steps=11,
-    week_target=4, overwrite=True):
+    week_target=4):
     data_path = f"dbfs:/mnt/{dataset_name}/delta/"
     
     # WEEK STEPS
@@ -128,7 +128,7 @@ def construct_customer_model(dataset_name, week_steps=11,
     
     # CAMPAIGN SIMULATION
     campaign_params = get_campaign_params(customer_model, dataset_name)
-    flush_dataframe(campaign_params,dataset_name,"campaign_params",overwrite)
+    flush_dataframe(campaign_params,dataset_name,"campaign_params")
     customer_model = add_campaign_features(customer_model, campaign_params)
     
     return customer_model
