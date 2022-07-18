@@ -55,11 +55,11 @@ class HierarchicalFeatureSelector(SelectorMixin, BaseEstimator):
         self.in_features_ =  X.columns
         self.results_ = self._get_correlations(X, y)
         
-        if (np.sum(self.results_.sf)>0) & (np.sum(self.results_.sf)<=self.n_features):
-            self.best_ = self.results_[self.results_.sf]
+        if (np.sum(self.results_.sf)==0):
+            raise Exception("Correlation tests fail for all features. Check input data.")
         else:
             self.results_["cluster"] = self._get_cluster_assignments(X)
-            self.best_ = (self.results_
+            self.best_ = (self.results_[self.results_.sf]
                 .merge(self.results_.groupby("cluster",
                     as_index=False).abs_r.max(), on=["cluster", "abs_r"])
                     .drop_duplicates(["cluster", "abs_r"]).dropna())            
