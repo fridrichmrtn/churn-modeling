@@ -36,8 +36,8 @@ class MLPClassifier(KerasClassifier):
         model = Sequential()
         inp = Input(shape=(self.n_features_in_))
         model.add(inp)
-        for i in range(self.n_layers):
-            model.add(Dense(self.layer_size,
+        for i in range(self.layers):
+            model.add(Dense(self.units,
                 activation=self.activation))
             model.add(BatchNormalization())
         model.add(Dense(1, activation="sigmoid"))
@@ -63,8 +63,8 @@ class MLPRegressor(KerasRegressor):
         model = Sequential()
         inp = Input(shape=(self.n_features_in_))
         model.add(inp)
-        for i in range(self.n_layers):
-            model.add(Dense(self.layer_size,
+        for i in range(self.layers):
+            model.add(Dense(self.units,
                 activation=self.activation))
             model.add(BatchNormalization())
         model.add(Dense(1, activation="linear"))
