@@ -67,103 +67,101 @@ preprocessing = {
 ### MODELS AND SPACES
 
 models = {
-#     "lr":
-#           {"model":{
-#               "classification":
-#                   [("lr", LogisticRegression(solver="saga",
-#                       penalty="elasticnet", max_iter=2500))],
-#               "regression":
-#                   [("lr", ElasticNetC(max_iter=2500))]},          
-#            "space":{               
-#                "lr__C":hp.uniform("lr__C",10**-2,10**1),
-#                "lr__l1_ratio":hp.uniform("lr__l1_ratio",0,1)},
-#            "preprocessing":"smooth"},
+    "lr":
+          {"model":{
+              "classification":
+                  [("lr", LogisticRegression(solver="saga",
+                      penalty="elasticnet", max_iter=2500))],
+              "regression":
+                  [("lr", ElasticNetC(max_iter=2500))]},          
+           "space":{               
+               "lr__C":hp.uniform("lr__C",10**-2,10**1),
+               "lr__l1_ratio":hp.uniform("lr__l1_ratio",0,1)},
+           "preprocessing":"smooth"},
     
-#     "svm_lin":{
-#             "model":{
-#               "classification":
-#                   [("svm_lin", LinearSVC(dual=False))],
-#               "regression":
-#                   [("svm_lin", LinearSVR(dual=False))]},
-#            "space":
-#                {"svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1),
-#                 "svm_lin__penalty":hp.choice("svm_lin__penalty",["l1","l2"])},
-#            "preprocessing":"smooth"},
+    "svm_lin":{
+            "model":{
+              "classification":
+                  [("svm_lin", LinearSVC(dual=False))],
+              "regression":
+                  [("svm_lin", LinearSVR(loss="squared_epsilon_insensitive", dual=False))]},
+           "space":
+               {"svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1)},
+           "preprocessing":"smooth"},
     
-#     "svm_rbf":{
-#             "model":{
-#               "classification":
-#                   [("rbf", Nystroem()), ("svm_lin", LinearSVC(dual=False))],
-#               "regression":
-#                   [("rbf", Nystroem()), ("svm_lin", LinearSVR(dual=False))]},
-#            "space":{
-#                "rbf__n_components":hp.randint("rbf__n_components",20,100),
-#                "svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1),
-#                "svm_lin__penalty":hp.choice("svm_lin__penalty",["l1","l2"])},
-#            "preprocessing":"smooth"},
+    "svm_rbf":{
+            "model":{
+              "classification":
+                  [("rbf", Nystroem()), ("svm_lin", LinearSVC(dual=False))],
+              "regression":
+                  [("rbf", Nystroem()), ("svm_lin", LinearSVR(loss="squared_epsilon_insensitive", dual=False))]},
+           "space":{
+               "rbf__n_components":hp.randint("rbf__n_components",20,100),
+               "svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1)},
+           "preprocessing":"smooth"},
     
-#     "mlp":{
-#            "model":{
-#               "classification":
-#                   [("mlp", MLPClassifier())],
-#               "regression":
-#                   [("mlp", MLPRegressor())]},
-#            "space":
-#                {"mlp__batch_size":hp.randint("mlp__batch_size",2**3,2**6),
-#                 "mlp__epochs":hp.randint("mlp__epochs",10**2,10**3),
-#                 "mlp__layers":hp.randint("mlp__layers",1,10),
-#                 "mlp__units":hp.randint("mlp__units",2**2,2**8),
-#                 "mlp__activation":hp.choice("mlp__activation",
-#                     ["tanh", "sigmoid", "relu", LeakyReLU()]),
-#                 "mlp__optimizer__learning_rate":hp.uniform("mlp__optimizer__learning_rate", 10**-5,10**-3),
-#                 "mlp__optimizer":hp.choice("mlp__optimizer",["sgd", "adam", "rmsprop"])},
-#            "preprocessing":"smooth"},
+    "mlp":{
+           "model":{
+              "classification":
+                  [("mlp", MLPClassifier())],
+              "regression":
+                  [("mlp", MLPRegressor())]},
+           "space":
+               {"mlp__batch_size":hp.randint("mlp__batch_size",2**3,2**6),
+                "mlp__epochs":hp.randint("mlp__epochs",10**2,10**3),
+                "mlp__layers":hp.randint("mlp__layers",1,10),
+                "mlp__units":hp.randint("mlp__units",2**2,2**8),
+                "mlp__activation":hp.choice("mlp__activation",
+                    ["tanh", "sigmoid", "relu", LeakyReLU()]),
+                "mlp__optimizer__learning_rate":hp.uniform("mlp__optimizer__learning_rate", 10**-5,10**-3),
+                "mlp__optimizer":hp.choice("mlp__optimizer",["sgd", "adam", "rmsprop"])},
+           "preprocessing":"smooth"},
     
-#     "dt":{
-#            "model":{
-#                "classification":
-#                    [("dt", DecisionTreeClassifier())],
-#                "regression":
-#                    [("dt", DecisionTreeRegressor())]},
-#            "space":
-#                {"dt__max_depth":hp.randint("dt__max_depth",2,30),
-#                 "dt__min_samples_split":hp.randint("dt__min_samples_split",10**1,2*10**2),
-#                 "dt__min_samples_leaf":hp.randint("dt__min_samples_leaf",1,100),
-#                 #"dt__ccp_alpha":hp.uniform("dt__base_estimator__ccp_alpha",0,1),
-#                 "dt__min_impurity_decrease":hp.uniform("dt__min_impurity_decrease",0,.05),
-#                 "dt__min_weight_fraction_leaf":hp.uniform("dt__min_weight_fraction_leaf",0,.05)},
-#            "preprocessing":"tree"},
+    "dt":{
+           "model":{
+               "classification":
+                   [("dt", DecisionTreeClassifier())],
+               "regression":
+                   [("dt", DecisionTreeRegressor())]},
+           "space":
+               {"dt__max_depth":hp.randint("dt__max_depth",2,30),
+                "dt__min_samples_split":hp.randint("dt__min_samples_split",10**1,2*10**2),
+                "dt__min_samples_leaf":hp.randint("dt__min_samples_leaf",1,100),
+                #"dt__ccp_alpha":hp.uniform("dt__base_estimator__ccp_alpha",0,1),
+                "dt__min_impurity_decrease":hp.uniform("dt__min_impurity_decrease",0,.05),
+                "dt__min_weight_fraction_leaf":hp.uniform("dt__min_weight_fraction_leaf",0,.05)},
+           "preprocessing":"tree"},
     
-#     "rf":{
-#            "model":{
-#                "classification":
-#                    [("rf", RandomForestClassifier())],
-#                "regression":
-#                    [("rf", RandomForestRegressor())]},
-#            "space":
-#                {"rf__n_estimators":hp.randint("rf__n_estimators",25,1000),
-#                 "rf__max_features":hp.uniform("rf__max_features",0.1,.7),
-#                 "rf__max_depth":hp.randint("rf__max_depth",2,30),
-#                 "rf__min_samples_split":hp.randint("rf__min_samples_split",10**1,2*10**2),
-#                 "rf__min_samples_leaf":hp.randint("rf__min_samples_leaf",1,100),
-#                 #"dt__ccp_alpha":hp.uniform("dt__ccp_alpha",0,0.05),
-#                 "rf__min_impurity_decrease":hp.uniform("rf__min_impurity_decrease",0,.05),
-#                 "rf__min_weight_fraction_leaf":hp.uniform("rf__min_weight_fraction_leaf",0,.05)},
-#            "preprocessing":"tree"},
+    "rf":{
+           "model":{
+               "classification":
+                   [("rf", RandomForestClassifier())],
+               "regression":
+                   [("rf", RandomForestRegressor())]},
+           "space":
+               {"rf__n_estimators":hp.randint("rf__n_estimators",25,1000),
+                "rf__max_features":hp.uniform("rf__max_features",0.1,.7),
+                "rf__max_depth":hp.randint("rf__max_depth",2,30),
+                "rf__min_samples_split":hp.randint("rf__min_samples_split",10**1,2*10**2),
+                "rf__min_samples_leaf":hp.randint("rf__min_samples_leaf",1,100),
+                #"dt__ccp_alpha":hp.uniform("dt__ccp_alpha",0,0.05),
+                "rf__min_impurity_decrease":hp.uniform("rf__min_impurity_decrease",0,.05),
+                "rf__min_weight_fraction_leaf":hp.uniform("rf__min_weight_fraction_leaf",0,.05)},
+           "preprocessing":"tree"},
     
-   "hgb":{
+   "hgb":{ # NOTE: ADD SUBSAMPLING?
           "model":{
               "classification":
                   [("hgb", LGBMClassifier())],
               "regression":
                   [("hgb", LGBMRegressor())]},
           "space":
-              {"hgb__learning_rate":hp.uniform("hgb__learning_rate",0.01,.15),
+              {"hgb__learning_rate":hp.uniform("hgb__learning_rate",0.01,.5),
                "hgb__n_estimators":hp.randint("hgb__n_estimators",25,1000),
-               "hgb__num_leaves":hp.randint("hgb__num_leaves",5**2,5**3),
+               "hgb__num_leaves":hp.randint("hgb__num_leaves",5**2,5**4),
                "hgb__max_depth":hp.randint("hgb__max_depth",2,30),
-               "hgb__min_child_samples":hp.randint("hgb__min_child_samples",1,100),
-               "hgb__reg_lambda":hp.uniform("hgb__reg_lambda",0,10**2)},
+               "hgb__min_child_samples":hp.randint("hgb__min_child_samples",2,100),
+               "hgb__reg_lambda":hp.uniform("hgb__reg_lambda",10**-2,10**2)},
           "preprocessing":"tree"}
 }
     
@@ -178,7 +176,6 @@ calibration = {
 def construct_pipelines(preprocessing=preprocessing, models=models):
     pipelines = {}
     tasks = ["classification","regression"]
-    #tasks = ["regression"]
     for task, task_short in zip(tasks,["class","reg"]):
         temp_preprocessing = preprocessing[task]
         temp_calibration = calibration[task]

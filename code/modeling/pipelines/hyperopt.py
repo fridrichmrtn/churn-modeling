@@ -10,7 +10,7 @@ from sklearn.metrics import (accuracy_score, precision_score,
     mean_absolute_error, mean_squared_error)
     
 hyperopt_config = {
-    "max_evals":5,
+    "max_evals":1,
     "trials":SparkTrials,
     "algo":tpe.suggest,
     "seed":20220602}
