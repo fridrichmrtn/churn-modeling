@@ -77,7 +77,7 @@ def _get_predictions(data, pipe):
             "week_step":temp_data["week_step"],
             "user_id":temp_data["raw"]["user_id"],
             "row_id":temp_data["raw"]["row_id"],
-            "predictions": pipe["fitted"].predict(X)}))
+            "predictions": pipe["fitted"].predict(X).reshape(-1)}))
     return optimize_numeric_dtypes(pd.concat(predictions))
 
 def _save_predictions(dataset_name, predictions):
@@ -97,9 +97,5 @@ def glue_pipeline(dataset_name, week_range, overwrite=True):
             pipe = optimize_pipeline(data["train"], pipe)
             pipe = _fit_calibrated_pipeline(data["train"], pipe)
             _save_predictions(dataset_name, _get_predictions(data, pipe))
-    #save_evaluation(dataset_name, evaluate_pipeline(dataset_name))
+    save_evaluation("retailrocket", evaluate_predictions("retailrocket"))
     return None
-
-# COMMAND ----------
-
-
