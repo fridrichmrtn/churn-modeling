@@ -1,6 +1,8 @@
 # Databricks notebook source
+from datetime import datetime
 import numpy as np
 import pandas as pd
+import mlflow
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pyspark.sql.functions as f
@@ -24,9 +26,10 @@ def _get_reg_metrics(df):
 def _get_class_metrics(df):
     metrics = {m.__name__:m for m in\
             [accuracy_score, precision_score, recall_score, f1_score, roc_auc_score]}
-    results = {n:f(df["target_event"], df.predictions) if n in "roc_" else \
+    results = {n:f(df["target_event"],  df.predictions) if "roc_" in n else \
                f(df["target_event"], (df["predictions"]>0.5).astype("int")) for n,f in metrics.items()}
     return pd.Series(results)
+
 
 #
 ##
@@ -53,6 +56,42 @@ def _get_class_profit(df, params):
     df = df.groupby("user_id", as_index=False)[["expected_profit", "target_actual_profit"]].mean()    
     return _get_campaign_metrics(df)
 
+    
+#
+##
+### RUNTIMES
+
+def _get_run_duration(run_id):
+    run_artifact = mlflow.get_run(run_id=run_id)
+    return (datetime.fromtimestamp(run_artifact.info.end_time/1000)-\
+         datetime.fromtimestamp(run_artifact.info.start_time/1000)).total_seconds()    
+    
+def _get_experiment_duration(exp_name):
+    experiment_id = [experiment for experiment in mlflow.list_experiments()
+        if exp_name == experiment.name][0].experiment_id
+    last_run_id = mlflow.list_run_infos(experiment_id=experiment_id, order_by=["start_time DESC"])[0].run_uuid
+    last_run = mlflow.get_run(run_id=last_run_id)
+    if "mlflow.parentRunId" in last_run.data.tags.keys():
+        last_run_parent_id = mlflow.get_run(run_id=last_run_id).data.tags["mlflow.parentRunId"]
+        duration = _get_run_duration(last_run_parent_id)
+    else:
+        duration = _get_run_duration(last_run_id)
+    return duration
+
+def _get_runtimes(row, dataset_name):
+    row_dict = row.to_dict()
+    pipe_name = "_".join([row_dict["pipe"],str(row_dict["week_step"])])
+    hyperopt_name = f"/{dataset_name}/modeling/hyperopt/{pipe_name}"
+    hyperopt_duration = _get_experiment_duration(hyperopt_name)
+    refit_name = f"/{dataset_name}/modeling/refit/{pipe_name}"
+    refit_duration = _get_experiment_duration(refit_name)
+    duration_dict = {"runtime_hyperopt":hyperopt_duration, "runtime_refit":refit_duration}
+    return pd.Series({**row_dict,**duration_dict})
+
+#
+##
+### EVALUATION
+
 def evaluate_predictions(dataset_name):
     customer_model = spark.table(f"churndb.{dataset_name}_customer_model")
     predictions = spark.table(f"churndb.{dataset_name}_predictions")
@@ -77,15 +116,21 @@ def evaluate_predictions(dataset_name):
     class_profit = class_predictions\
         .groupby(groups, as_index=False).apply(_get_class_profit, params)\
             .melt(id_vars=groups, var_name="metric")
+    # runtimes
+    runtimes = predictions.where(f.col("set_type")=="train")\
+        .select(groups).distinct().toPandas()\
+            .apply(_get_runtimes, axis=1, dataset_name=dataset_name)\
+                .melt(id_vars=groups, var_name="metric")
+        
     return pd.concat([reg_metrics, reg_profit,
-        class_metrics, class_profit]).reset_index(drop=True)
+        class_metrics, class_profit, runtimes]).reset_index(drop=True)
     
 def save_evaluation(dataset_name, evaluation):  
     spark.createDataFrame(evaluation)\
         .write.format("delta").mode("overwrite")\
             .saveAsTable(f"churndb.{dataset_name}_evaluation")
     return None        
-    
+
 
 # COMMAND ----------
 
@@ -180,17 +225,17 @@ def plot_bias_variance(df, metrics, figsize=(16,5)):
 # COMMAND ----------
 
 # # # TEST
-# #dataset_name = "retailrocket"
+# dataset_name = "retailrocket"
 # evaluation = spark.table(f"churndb.{dataset_name}_evaluation").toPandas()
 # display(get_ci(evaluation).fillna(0))
 # display(get_tt(evaluation))
 
-# # metrics = {"accuracy_score":{"label":"acc", "xlim":(0,1)},
-# #      "f1_score":{"label":"f1", "xlim":(0,1)},
-# #      "roc_auc_score":{"label":"auc", "xlim":(0,1)}}
+# metrics = {"accuracy_score":{"label":"acc", "xlim":(0,1)},
+#      "f1_score":{"label":"f1", "xlim":(0,1)},
+#      "roc_auc_score":{"label":"auc", "xlim":(0,1)}}
 
-# metrics = {"r2_score":{"label":"r2", "xlim":(None,None)},
-#      "mean_squared_error":{"label":"mse", "xlim":(None,None)},
-#      "mean_absolute_error":{"label":"mae", "xlim":(None,None)}}   
+# # metrics = {"r2_score":{"label":"r2", "xlim":(None,None)},
+# #      "mean_squared_error":{"label":"mse", "xlim":(None,None)},
+# #      "mean_absolute_error":{"label":"mae", "xlim":(None,None)}}   
 
 # plot_bias_variance(evaluation, metrics=metrics)  
