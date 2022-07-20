@@ -1,4 +1,5 @@
 # Databricks notebook source
+import os
 from hyperopt import hp
 preference_config = {
     "event_types":["view","purchase"],
@@ -14,7 +15,6 @@ preference_config = {
 #
 ##
 ### HELPERS
-# NOTE: add docstrings?
 
 def _get_exp_id(exp_path):
     import mlflow
@@ -78,8 +78,8 @@ def _optimize_recom(events, dataset_name, event_type, seed):
     import mlflow
     
     # optimization
-    exp_name = f"{dataset_name}_{event_type}_reco_hyperopt"
-    exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
+    exp_name = f"/{dataset_name}/ingestion/hyperopt/{event_type}_reco"
+    exp_id = _get_exp_id(exp_name)
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:    
         optimized_params = fmin(
@@ -96,7 +96,7 @@ def _optimize_recom(events, dataset_name, event_type, seed):
 def _get_hyperopt_run(dataset_name, event_type):
     import mlflow
     run_id = mlflow.search_runs(experiment_ids=_get_exp_id(
-        f"/Shared/dev/{dataset_name}_{event_type}_reco_hyperopt"),
+        f"/{dataset_name}/ingestion/hyperopt/{event_type}_reco"),
             search_all_experiments=True, order_by=["metrics.val_rmse ASC"],
                 max_results=1)["run_id"][0]
     return run_id
@@ -105,17 +105,19 @@ def _fit_recom(events, event_type, dataset_name, run_id=None):
     import mlflow
     
     if run_id is None:
-        run_id = _get_hyperopt_run(dataset_name, event_type)
-        
-    run_params = mlflow.get_run(run_id=run_id).data.params  
-    exp_name = f"{dataset_name}_{event_type}_reco_refit"
-    exp_id = _get_exp_id(f"/Shared/dev/{exp_name}")
+        run_id = _get_hyperopt_run(dataset_name, event_type)        
+    run_params = mlflow.get_run(run_id=run_id).data.params
+    
+    exp_name = f"/{dataset_name}/ingestion/refit/{event_type}_reco"
+    exp_id = _get_exp_id(exp_name)
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:     
         mlflow.log_params(run_params)
         imp_feed = _get_imp_feed(events)
         model = _set_recom(run_params, seed=preference_config["seed"]).fit(imp_feed)
-        mlflow.spark.log_model(model, exp_name, registered_model_name=exp_name)
+        mlflow.spark.log_model(model,
+            os.path.relpath(exp_name, "/"),
+            registered_model_name="{}_{}_reco".format(dataset_name,event_type))
         return model
       
 #
