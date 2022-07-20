@@ -19,7 +19,7 @@ from sklearn.svm import LinearSVC, LinearSVR
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from tensorflow.keras.layers import LeakyReLU
 from sklearn.ensemble import (RandomForestClassifier, RandomForestRegressor,
-    HistGradientBoostingClassifier, HistGradientBoostingRegressor)
+    HistGradientBoostingClassifier, HistGradientBoostingRegressor, BaggingRegressor)
 from lightgbm import LGBMClassifier, LGBMRegressor
 
 # COMMAND ----------
@@ -41,26 +41,26 @@ sampling = {
            [RandomOverSampler(), RandomUnderSampler(), "passthrough"]}
 
 preprocessing = {
-    task:{"smooth":
-        {"steps":
-            [("variance_filter", VarianceThreshold()),
-            ("data_scaler", PowerTransformer()),
-            ("feature_selector", HierarchicalFeatureSelector()),
-            ("data_sampler", "passthrough")],
-        "space":
-            {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-3, 5*10**1),
-            "data_scaler":hp.choice("data_scaler", scaling[task]),
-            "feature_selector__n_features":hp.randint("feature_selector__n_features", 5, 100),
-            "data_sampler":hp.choice("data_sampler", sampling[task])
-            }},
-    "tree":
-         {"steps":
-              [("variance_filter", VarianceThreshold()),
-              ("data_sampler", "passthrough")],
-         "space":
-             {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-3, 5*10**1),
-             "data_sampler":hp.choice("data_sampler", sampling[task])}}} for task in scaling.keys()}
-        
+    task:{
+        "smooth":
+            {"steps":
+                [("variance_filter", VarianceThreshold()),
+                ("data_scaler", PowerTransformer()),
+                ("feature_selector", HierarchicalFeatureSelector()),
+                ("data_sampler", "passthrough")],
+            "space":
+                {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-3, 5*10**1),
+                "data_scaler":hp.choice("data_scaler", scaling[task]),
+                "feature_selector__n_features":hp.randint("feature_selector__n_features", 5, 100),
+                "data_sampler":hp.choice("data_sampler", sampling[task])
+                }},
+        "tree":
+             {"steps":
+                  [("variance_filter", VarianceThreshold()),
+                  ("data_sampler", "passthrough")],
+             "space":
+                 {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-3, 5*10**1),
+                 "data_sampler":hp.choice("data_sampler", sampling[task])}}} for task in scaling.keys()}
         
 #
 ##
@@ -112,7 +112,7 @@ models = {
                 "mlp__layers":hp.randint("mlp__layers",1,10),
                 "mlp__units":hp.randint("mlp__units",2**2,2**8),
                 "mlp__activation":hp.choice("mlp__activation",
-                    ["tanh", "sigmoid", "relu", LeakyReLU()]),
+                    ["elu", LeakyReLU()]),
                 "mlp__optimizer__learning_rate":hp.uniform("mlp__optimizer__learning_rate", 10**-5,10**-3),
                 "mlp__optimizer":hp.choice("mlp__optimizer",["sgd", "adam", "rmsprop"])},
            "preprocessing":"smooth"},
