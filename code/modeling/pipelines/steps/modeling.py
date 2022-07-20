@@ -22,6 +22,7 @@ class MLPClassifier(KerasClassifier):
 
     def __init__(self, layers=1, units=8,
         activation="relu", optimizer="adam",
+        optimizer__clipvalue=1.0,
         #optimizer__learning_rate=10**-3,
         epochs=50, verbose=0, **kwargs,):
             super().__init__(**kwargs)
@@ -31,14 +32,26 @@ class MLPClassifier(KerasClassifier):
             self.optimizer = optimizer
             self.epochs = epochs
             self.verbose = verbose
+            self.optimizer__clipvalue=optimizer__clipvalue
+            
+    def _get_weight_init(self):
+        if isinstance(self.activation, LeakyReLU): 
+            init = HeNormal()
+        elif self.activation in ["selu", "elu"]:
+            init = LecunNormal()
+        else:
+            init = HeNormal()  
+        return init            
         
     def _keras_build_fn(self, compile_kwargs):
+        weight_init = self._get_weight_init()
         model = Sequential()
         inp = Input(shape=(self.n_features_in_))
         model.add(inp)
         for i in range(self.layers):
             model.add(Dense(self.units,
-                activation=self.activation))
+                activation=self.activation,
+                kernel_initializer=weight_init))
             model.add(BatchNormalization())
         model.add(Dense(1, activation="sigmoid"))
         model.compile(loss="binary_crossentropy",
@@ -49,7 +62,7 @@ class MLPRegressor(KerasRegressor):
 
     def __init__(self, layers=1, units=8,
         activation="relu", optimizer="adam",
-        #optimizer__learning_rate=10**-3,
+        optimizer__clipvalue=1.0,
         epochs=50, verbose=0, **kwargs,):
             super().__init__(**kwargs)
             self.layers = layers
@@ -58,14 +71,26 @@ class MLPRegressor(KerasRegressor):
             self.optimizer = optimizer
             self.epochs = epochs
             self.verbose = verbose
-        
+            self.optimizer__clipvalue = optimizer__clipvalue
+    
+    def _get_weight_init(self):
+        if isinstance(self.activation, LeakyReLU): 
+            init = HeNormal()
+        elif self.activation in ["selu", "elu"]:
+            init = LecunNormal()
+        else:
+            init = HeNormal()  
+        return init
+    
     def _keras_build_fn(self, compile_kwargs):
+        weight_init = self._get_weight_init()
         model = Sequential()
         inp = Input(shape=(self.n_features_in_))
         model.add(inp)
         for i in range(self.layers):
             model.add(Dense(self.units,
-                activation=self.activation))
+                activation=self.activation,
+                kernel_initializer=weight_init))
             model.add(BatchNormalization())
         model.add(Dense(1, activation="linear"))
         model.compile(loss="mean_squared_error",
@@ -90,12 +115,16 @@ class ElasticNetC(ElasticNet):
 ### CALIBRATION
 
 class CalibratedClassifierCV(CalibratedClassifierCV):
+    #def __init__(self, base_estimator, ensemble=False, **kwargs): # ensemble, cv):
+    #    super().__init__(base_estimator, ensemble=False, **kwargs)
+    #    self.ensemble = ensemble
+    #    self.cv=cv
+        
     def predict(self, X):
         return self.predict_proba(X)[:,1]
 
 class CalibratedPassthrough(BaseEstimator):
-  
-    def __init__(self,base_estimator):
+    def __init__(self, base_estimator):
         self.base_estimator = clone(base_estimator)
         self.fitted = None
         
