@@ -41,7 +41,7 @@ def optimize_numeric_dtypes(df):
 
 def get_Xy(data, pipe):
     X = data["raw"].loc[:, data["columns"][pipe["task"]]["X"]]                   
-    y = data["raw"].loc[:, data["columns"][pipe["task"]]["y"]]                  
+    y = data["raw"].loc[:, data["columns"][pipe["task"]]["y"]].values.reshape(-1)                  
     return (X, y)
 
 #
