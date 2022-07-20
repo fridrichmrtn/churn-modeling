@@ -15,6 +15,7 @@
 
 # COMMAND ----------
 
+import os
 import numpy as np
 import pandas as pd
 import mlflow
@@ -48,22 +49,23 @@ def _get_dataset(dataset_name, week_step):
             {"raw":optimize_numeric_dtypes(train),
              "week_step":week_step,
              "columns":columns,
-             "name":f"{dataset_name}_{week_step}"},
+             "name":dataset_name},
       "test":
             {"raw":optimize_numeric_dtypes(test),
              "week_step":week_step,
              "columns":columns,
-             "name":f"{dataset_name}_{week_step}"}}      
+             "name":dataset_name}}      
     
 def _fit_calibrated_pipeline(data, pipe):
-    X, y = get_Xy(data, pipe)    
-    exp_name = "{}_{}_refit".format(data["name"],pipe["name"])
-    exp_id = get_exp_id(f"/Shared/dev/{exp_name}")
+    exp_name = "/{}/modeling/refit/{}_{}".format(data["name"],pipe["name"],data["week_step"])
+    exp_id = get_exp_id(exp_name)
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:
-        pipe["fitted"] = pipe["calibration"](pipe["steps"]).fit(X, y)
+        X, y = get_Xy(data, pipe)
+        pipe["fitted"] = pipe["calibration"](base_estimator=pipe["steps"]).fit(X, y)
         mlflow.sklearn.log_model(pipe["fitted"],
-             exp_name, registered_model_name=exp_name)
+             os.path.relpath(exp_name, "/"),
+             registered_model_name="{}_{}_{}".format(data["name"],pipe["name"],data["week_step"]))
     return pipe
 
 def _get_predictions(data, pipe):

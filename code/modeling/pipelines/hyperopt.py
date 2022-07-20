@@ -1,4 +1,8 @@
 # Databricks notebook source
+# MAGIC %run ./utils
+
+# COMMAND ----------
+
 import numpy as np
 from functools import partial
 import mlflow
@@ -10,7 +14,7 @@ from sklearn.metrics import (accuracy_score, precision_score,
     mean_absolute_error, mean_squared_error)
     
 hyperopt_config = {
-    "max_evals":1,
+    "max_evals":25,
     "trials":SparkTrials,
     "algo":tpe.suggest,
     "seed":20220602}
@@ -71,8 +75,9 @@ def _evaluate_hyperopt(params, task, model, X, y, seed):
 
 def optimize_pipeline(data, pipe):
     X, y = get_Xy(data, pipe)
-    exp_name = "{}_{}_hyperopt".format(data["name"],pipe["name"]) # NOTE: CONSIDER DIFF ON NAMES
-    exp_id = get_exp_id(f"/Shared/dev/{exp_name}")
+    
+    exp_name = "/{}/modeling/hyperopt/{}_{}".format(data["name"],pipe["name"],data["week_step"])
+    exp_id = get_exp_id(exp_name)
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:
         space_optimized = fmin(
@@ -80,7 +85,7 @@ def optimize_pipeline(data, pipe):
                 X=X, y=y, task=pipe["task"], model=pipe["steps"],
                     seed=hyperopt_config["seed"]),
             space=pipe["space"], max_evals=hyperopt_config["max_evals"], 
-            trials=hyperopt_config["trials"](parallelism=1), algo=hyperopt_config["algo"])
+            trials=hyperopt_config["trials"](parallelism=5), algo=hyperopt_config["algo"])
     pipe["steps"] =  pipe["steps"].set_params(
         **space_eval(pipe["space"], space_optimized))
     return pipe
