@@ -164,7 +164,7 @@ def _retailrocket_fix(events_dict):
     gw = Window().partitionBy("visitorid").orderBy("row_num")
     lw = Window.orderBy(f.lit("m"))
     groups = (events.filter(f.col("is_start"))
-        .withColumn("row_end", f.coalesce(f.lead("row_num",1).over(gw), f.col("row_num")))
+        .withColumn("row_end", f.coalesce(f.lead("row_num",1).over(gw), f.col("row_num")+1))
         .withColumn("diff", f.col("row_end")-f.col("row_num")).filter(f.col("is_start"))
         .withColumn("sessionid", f.row_number().over(lw))
         .select("visitorid", "sessionid", f.col("row_num").alias("row_start"), "row_end"))
@@ -269,7 +269,7 @@ def save_events(events, dataset_name):
     # do the repartitioning
     data_path = load_transform_config[dataset_name]["data"]
     data_path += "delta/events"
-    #_rm_dir(data_path)
+    #data_path += "raw/concatenated/events"
     (events
          .write.format("delta")#.partitionBy("user_id")
          .mode("overwrite")#.option("overwriteSchema", "true")
