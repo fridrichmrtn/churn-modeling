@@ -151,52 +151,15 @@ def save_customer_model(customer_model, dataset_name, overwrite=True):
 
 # COMMAND ----------
 
-# import pyspark.sql.functions as f
-# from pyspark.sql.window import Window
+# dataset_name = "rees46"
+# customer_model = spark.table(f"churndb.{dataset_name}_customer_model")
+# customer_model.select("target_customer_value").describe().show()
+# SET PARAMS IN THE SIMULATION AND RELOAD
 
-# overwrite=True
-# dataset_name = "retailrocket"
-# data_path = f"dbfs:/mnt/{dataset_name}/delta/"
-# customer_model = spark.table("churndb.retailrocket_customer_model").drop("target_actual_profit", "row_id")
+# COMMAND ----------
 
-# customer_model = customer_model.withColumn("row_id",f.row_number()\
-#     .over(Window.orderBy(f.monotonically_increasing_id()))).persist()
-
-# # SIMULATED PARAMS
+# customer_model = customer_model.drop(["target_customer_value_lag1","target_actual_profit"])
 # campaign_params = get_campaign_params(customer_model, dataset_name)
+# flush_dataframe(campaign_params,dataset_name,"campaign_params")
 # customer_model = add_campaign_features(customer_model, campaign_params)
-
-# # FLUSH
-# mode = "append"
-# if overwrite:
-#     spark.sql("DROP TABLE IF EXISTS "\
-#         + f"churndb.{dataset_name}_customer_model0")
-#     spark.sql("DROP TABLE IF EXISTS "\
-#         + f"churndb.{dataset_name}_campaign_params0")    
-#     mode = "overwrite"
-
-# customer_model.write.format("delta").mode(mode)\
-#     .saveAsTable(f"churndb.{dataset_name}_customer_model0")
-# campaign_params.write.format("delta").mode(mode)\
-#     .saveAsTable(f"churndb.{dataset_name}_campaign_params0")
-
-# COMMAND ----------
-
-# customer_model = spark.table(f"churndb.{dataset_name}_customer_model0")
-# customer_model.where(f.col("user_id")==23076).toPandas().sort_values("week_step")
-
-# COMMAND ----------
-
-# spark.table(f"churndb.{dataset_name}_customer_model").where(f.col("user_id")==23076).toPandas().sort_values("week_step")
-
-# COMMAND ----------
-
-# campaign_check = customer_model.join(campaign_params, on=["user_id"], how="inner")
-# campaign_check.withColumn("target_profit_test", f.col("target_event")*f.col("gamma")*(f.col("target_customer_value")-f.col("delta"))-(1-f.col("target_event"))*f.col("psi")*f.col("delta")).groupBy(["user_id","row_id","week_step"]).agg(f.mean(f.col("target_profit_test")).alias("target_actual_profit"))\
-#     .where(f.col("user_id")==23076).toPandas().sort_values("week_step")
-
-# COMMAND ----------
-
-# campaign_check = customer_model.join(campaign_params, on=["user_id"])
-# campaign_check.withColumn("target_profit_test", f.col("target_event")*f.col("gamma")*(f.col("target_customer_value")-f.col("delta"))-(1-f.col("target_event"))*f.col("psi")*f.col("delta")).groupBy(["row_id"]).agg(f.mean(f.col("target_profit_test")).alias("target_actual_profit"))\
-#     .where(f.col("row_id").isin([9,410,792,1154,1498,1817,2113,2379])).toPandas().sort_values("row_id")
+# save_customer_model(customer_model, dataset_name)

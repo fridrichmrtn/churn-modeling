@@ -16,11 +16,11 @@
 # ##
 # ### RETAIL ROCKET
 
-# dataset_name = "retailrocket"
+dataset_name = "retailrocket"
 
 # # LOAD TRANSFORM
-# #events = construct_events(dataset_name)
-# #save_events(events, dataset_name)
+events = construct_events(dataset_name)
+save_events(events, dataset_name)
 
 # # CUSTOMER MODEL
 # customer_model = construct_customer_model(
@@ -37,11 +37,11 @@
 dataset_name = "rees46"
  
 # LOAD TRANSFORM
-#events = construct_events(dataset_name)
-#save_events(events, dataset_name)
+events = construct_events(dataset_name)
+save_events(events, dataset_name)
  
 # CUSTOMER MODEL
-customer_model = construct_customer_model(
-    dataset_name, week_steps=11, week_target=4)
-save_customer_model(
-    customer_model, dataset_name, overwrite=True)
+#customer_model = construct_customer_model(
+#    dataset_name, week_steps=11, week_target=4)
+#save_customer_model(
+#    customer_model, dataset_name, overwrite=True)
