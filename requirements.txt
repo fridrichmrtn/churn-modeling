@@ -6,6 +6,7 @@ scipy
 pandas
 matplotlib
 seaborn
+findspark
 pyspark
 pyarrow
 tensorflow
