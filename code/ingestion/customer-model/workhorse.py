@@ -83,7 +83,7 @@ def _impute_customer_model(customer_model):
     return customer_model
 
 def _construct_customer_model(dataset_name, events, split_time,
-    week_step, week_target):
+    time_step, week_target):
     cust_target = _get_target(events, split_time, week_target)
     cust_events = _get_feature_events(events, split_time).persist()    
 
@@ -97,14 +97,14 @@ def _construct_customer_model(dataset_name, events, split_time,
     #customer_model = cust_base.join(cust_target, on=["user_id"])
     # IMPUTATION
     customer_model = _impute_customer_model(customer_model)
-    customer_model = customer_model.withColumn("week_step", f.lit(week_step))
+    customer_model = customer_model.withColumn("time_step", f.lit(time_step))
     return customer_model
     
 #
 ##
 ###  CUSTOMER MODEL
         
-def construct_customer_model(dataset_name, week_steps=11,
+def construct_customer_model(dataset_name, time_steps=3,
     week_target=4):
     data_path = f"dbfs:/mnt/{dataset_name}/delta/"
     
@@ -112,12 +112,12 @@ def construct_customer_model(dataset_name, week_steps=11,
     events = spark.read.format("delta").load(data_path+"events")
     max_date = events.agg(f.to_date(f.next_day(f.max("event_time"),"Sun")
         -f.expr("INTERVAL 7 DAYS")).alias("mdt")).collect()[0]["mdt"]
-    for week_step in range(week_steps):
-        temp_max_date = max_date+relativedelta(days=-(7*week_step))
+    for time_step in range(time_steps):
+        temp_max_date = max_date+relativedelta(days=-(7*time_step*week_target))
         temp_split_date = temp_max_date+relativedelta(days=-(7*week_target))
         temp_customer_model = _construct_customer_model(dataset_name,
                 events.where(f.col("event_time")<=temp_max_date),
-                    temp_split_date, week_step, week_target)
+                    temp_split_date, time_step, week_target)
         if "customer_model" not in locals():
             customer_model = temp_customer_model
         else:
