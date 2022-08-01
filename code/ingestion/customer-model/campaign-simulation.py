@@ -56,7 +56,7 @@ def get_campaign_params(customer_model, dataset_name):
 
 def add_campaign_features(customer_model, campaign_params):
     # lagged customer value
-    w = Window.partitionBy("user_id").orderBy(f.col("week_step").asc())
+    w = Window.partitionBy("user_id").orderBy(f.col("time_step").asc())
     customer_model = customer_model.withColumn("target_customer_value_lag1",
             f.lead("target_customer_value").over(w))\
         .fillna(0, subset=["target_customer_value_lag1"])

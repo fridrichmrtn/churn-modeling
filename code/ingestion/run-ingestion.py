@@ -12,21 +12,22 @@
 
 # COMMAND ----------
 
-# #
-# ##
-# ### RETAIL ROCKET
+#
+##
+### RETAIL ROCKET
 
 dataset_name = "retailrocket"
 
-# # LOAD TRANSFORM
+# LOAD TRANSFORM
 events = construct_events(dataset_name)
 save_events(events, dataset_name)
 
-# # CUSTOMER MODEL
-# customer_model = construct_customer_model(
-#     dataset_name, week_steps=11, week_target=4)
-# save_customer_model(
-#     customer_model, dataset_name, overwrite=True)
+# CUSTOMER MODEL
+#_prerun_optimize_recom(dataset_name)
+customer_model = construct_customer_model(
+     dataset_name, time_steps=3, week_target=4)
+save_customer_model(
+     customer_model, dataset_name, overwrite=True)
 
 # COMMAND ----------
 
@@ -34,13 +35,14 @@ save_events(events, dataset_name)
 ##
 ### REES46
 
-dataset_name = "rees46"
+#dataset_name = "rees46"
  
 # LOAD TRANSFORM
-events = construct_events(dataset_name)
-save_events(events, dataset_name)
+#events = construct_events(dataset_name)
+#save_events(events, dataset_name)
  
 # CUSTOMER MODEL
+#_prerun_optimize_recom(dataset_name)
 #customer_model = construct_customer_model(
 #    dataset_name, week_steps=11, week_target=4)
 #save_customer_model(

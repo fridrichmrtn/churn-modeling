@@ -80,7 +80,7 @@ def _get_experiment_duration(exp_name):
 
 def _get_runtimes(row, dataset_name):
     row_dict = row.to_dict()
-    pipe_name = "_".join([row_dict["pipe"],str(row_dict["week_step"])])
+    pipe_name = "_".join([row_dict["pipe"],str(row_dict["time_step"])])
     hyperopt_name = f"/{dataset_name}/modeling/hyperopt/{pipe_name}"
     hyperopt_duration = _get_experiment_duration(hyperopt_name)
     refit_name = f"/{dataset_name}/modeling/refit/{pipe_name}"
@@ -97,7 +97,7 @@ def evaluate_predictions(dataset_name):
     predictions = spark.table(f"churndb.{dataset_name}_predictions")
     params = spark.table(f"churndb.{dataset_name}_campaign_params").toPandas()
     cols = ["row_id", "target_event", "target_actual_profit", "target_customer_value_lag1"]
-    groups = ["pipe", "task", "set_type", "week_step"]
+    groups = ["pipe", "task", "set_type", "time_step"]
     # regression metrics
     reg_predictions = predictions.where((f.col("task")=="regression")).join(
         customer_model.select(cols), on=["row_id"]).toPandas()
@@ -195,7 +195,7 @@ def _tt(df, a="value_x", b="value_y"):
     return (diff, tstat, pval)
 
 def get_tt(df):
-    df = df.merge(df, on=["set_type", "week_step", "metric"])\
+    df = df.merge(df, on=["set_type", "time_step", "metric"])\
         .groupby(["pipe_x", "pipe_y","set_type", "metric"])\
             .apply(_tt).to_frame('ttest').reset_index()
     df = pd.concat([df, pd.DataFrame(df["ttest"].tolist(),
@@ -207,9 +207,9 @@ def get_tt(df):
 # b-v trade-off
 def plot_bias_variance(df, metrics, figsize=(16,5)):
     tdf = pd.pivot_table(df,
-        index=["pipe","week_step", "metric"],
+        index=["pipe","time_step", "metric"],
             columns=["set_type"]).reset_index()
-    tdf.columns = ["pipe","week_step", "metric", "test", "train"]
+    tdf.columns = ["pipe","time_step", "metric", "test", "train"]
     f, axs = plt.subplots(1,3, figsize=figsize);
     for i,m in enumerate(metrics.items()):
         a = axs.flatten()[i]

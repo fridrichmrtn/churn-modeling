@@ -76,7 +76,7 @@ def _evaluate_hyperopt(params, task, model, X, y, seed):
 def optimize_pipeline(data, pipe):
     X, y = get_Xy(data, pipe)
     
-    exp_name = "/{}/modeling/hyperopt/{}_{}".format(data["name"],pipe["name"],data["week_step"])
+    exp_name = "/{}/modeling/hyperopt/{}_{}".format(data["name"],pipe["name"],data["time_step"])
     exp_id = get_exp_id(exp_name)
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:

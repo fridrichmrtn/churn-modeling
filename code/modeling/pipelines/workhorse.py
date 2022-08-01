@@ -29,7 +29,7 @@ def _get_cols(train):
     class_y = ["target_event"]
     reg_y = ["target_actual_profit"]
     target_cols = [c for c in train.columns if "target_" in c]
-    helper_cols = ["user_id", "row_id", "week_step"] # NOTE: week_step?
+    helper_cols = ["user_id", "row_id", "time_step"] # NOTE: week_step?
     cust_val_cols = [c for c in train.columns if "customer_value" in c]
     class_set = set(target_cols+helper_cols+cust_val_cols)
     reg_set = set(target_cols+helper_cols)
@@ -38,26 +38,26 @@ def _get_cols(train):
     return {"classification":{"X":class_X,"y":class_y},
         "regression":{"X":reg_X,"y":reg_y}}
 
-def _get_dataset(dataset_name, week_step):
+def _get_dataset(dataset_name, time_step):
     data = spark.table(f"churndb.{dataset_name}_customer_model")\
-        .where(f.col("week_step")>=week_step).toPandas()
-    train = data[data.week_step>week_step]
-    test = data[data.week_step==week_step]			
+        .where(f.col("time_step")>=time_step).toPandas()
+    train = data[data.time_step>time_step]
+    test = data[data.time_step==time_step]			
     columns = _get_cols(train)
     return {
       "train":
             {"raw":optimize_numeric_dtypes(train),
-             "week_step":week_step,
+             "time_step":time_step,
              "columns":columns,
              "name":dataset_name},
       "test":
             {"raw":optimize_numeric_dtypes(test),
-             "week_step":week_step,
+             "time_step":time_step,
              "columns":columns,
              "name":dataset_name}}      
     
 def _fit_calibrated_pipeline(data, pipe):
-    exp_name = "/{}/modeling/refit/{}_{}".format(data["name"],pipe["name"],data["week_step"])
+    exp_name = "/{}/modeling/refit/{}_{}".format(data["name"],pipe["name"],data["time_step"])
     exp_id = get_exp_id(exp_name)
     mlflow.set_experiment(experiment_id=exp_id)
     with mlflow.start_run() as run:
@@ -65,7 +65,7 @@ def _fit_calibrated_pipeline(data, pipe):
         pipe["fitted"] = pipe["calibration"](base_estimator=pipe["steps"]).fit(X, y)
         mlflow.sklearn.log_model(pipe["fitted"],
              os.path.relpath(exp_name, "/"),
-             registered_model_name="{}_{}_{}".format(data["name"],pipe["name"],data["week_step"]))
+             registered_model_name="{}_{}_{}".format(data["name"],pipe["name"],data["time_step"]))
     return pipe
 
 def _get_predictions(data, pipe):
@@ -76,7 +76,7 @@ def _get_predictions(data, pipe):
             "pipe":pipe["name"],
             "task":pipe["task"],
             "set_type":temp_type,
-            "week_step":temp_data["week_step"],
+            "time_step":temp_data["time_step"],
             "user_id":temp_data["raw"]["user_id"],
             "row_id":temp_data["raw"]["row_id"],
             "predictions": pipe["fitted"].predict(X).reshape(-1)}))
@@ -88,13 +88,13 @@ def _save_predictions(dataset_name, predictions):
             .saveAsTable(f"churndb.{dataset_name}_predictions")
     return None
     
-def glue_pipeline(dataset_name, week_range, overwrite=True):
+def glue_pipeline(dataset_name, time_range, overwrite=True):
     if overwrite:
         spark.sql(f"DROP TABLE IF EXISTS churndb.{dataset_name}_predictions;")
         spark.sql(f"DROP TABLE IF EXISTS churndb.{dataset_name}_evaluation;")
     pipelines = construct_pipelines()
-    for week_step in week_range:
-        data = _get_dataset(dataset_name, week_step)
+    for time_step in time_range:
+        data = _get_dataset(dataset_name, time_step)
         for pipe_name, pipe in pipelines.items():
             pipe = optimize_pipeline(data["train"], pipe)
             pipe = _fit_calibrated_pipeline(data["train"], pipe)
