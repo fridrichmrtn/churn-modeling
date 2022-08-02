@@ -19,13 +19,13 @@
 dataset_name = "retailrocket"
 
 # LOAD TRANSFORM
-events = construct_events(dataset_name)
-save_events(events, dataset_name)
+#events = construct_events(dataset_name)
+#save_events(events, dataset_name)
 
 # CUSTOMER MODEL
 #_prerun_optimize_recom(dataset_name)
 customer_model = construct_customer_model(
-     dataset_name, time_steps=3, week_target=4)
+     dataset_name, time_steps=5, week_target=4)
 save_customer_model(
      customer_model, dataset_name, overwrite=True)
 
@@ -44,6 +44,6 @@ save_customer_model(
 # CUSTOMER MODEL
 #_prerun_optimize_recom(dataset_name)
 #customer_model = construct_customer_model(
-#    dataset_name, week_steps=11, week_target=4)
+#    dataset_name, time_steps=7, week_target=4)
 #save_customer_model(
 #    customer_model, dataset_name, overwrite=True)

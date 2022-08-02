@@ -76,7 +76,7 @@ def _impute_customer_model(customer_model):
     max_vals = customer_model.agg(*max_expr).toPandas().transpose().to_dict()[0]
     customer_model = customer_model.fillna(max_vals)
     interactions = ["view", "cart", "purchase"]
-    operations = ["sum","mean", "min", "max"]
+    operations = ["sum", "mean", "min", "max"]
     zero_cols = [f"{i}_revenue_{o}" for o in operations for i in interactions]
     customer_model = customer_model.fillna(0, subset=zero_cols)
     

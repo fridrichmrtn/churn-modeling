@@ -3,4 +3,4 @@
 
 # COMMAND ----------
 
-glue_pipeline(dataset_name="retailrocket", week_range=range(9), overwrite=True)
+glue_pipeline(dataset_name="retailrocket", time_range=range(3), overwrite=True)

@@ -1,3 +1,7 @@
+# DATABRICKS ENV
+# scikeras==0.8.0
+# 10.4 LTS ML w/o GPU, Spark 3.2.1, Scala 2.1.2
+
 setuptools
 wheel
 jupyter
