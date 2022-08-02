@@ -13,6 +13,7 @@ seaborn
 findspark
 pyspark
 pyarrow
+delta-spark
 tensorflow
 keras
 scikeras
