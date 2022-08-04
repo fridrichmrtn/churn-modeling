@@ -7,11 +7,11 @@ from pyspark.sql.window import Window
 simulation_config = {
     "retailrocket":{
         "gamma":{"alpha":2.04, "beta":202.04},
-        "delta":7500, 
+        "delta":7000, 
         "psi":{"alpha":6.12, "beta":3.15},
         "n_iter":1000},
     "rees46":{"gamma":{"alpha":2.04, "beta":202.04},
-        "delta":7500, 
+        "delta":10, 
         "psi":{"alpha":6.12, "beta":3.15},
         "n_iter":1000}}
 
