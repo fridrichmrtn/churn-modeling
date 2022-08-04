@@ -38,8 +38,8 @@
 dataset_name = "rees46"
  
 # LOAD TRANSFORM
-events = construct_events(dataset_name)
-save_events(events, dataset_name)
+#events = construct_events(dataset_name)
+#save_events(events, dataset_name)
  
 # CUSTOMER MODEL
 _prerun_optimize_recom(dataset_name)
@@ -50,4 +50,4 @@ save_customer_model(
 
 # COMMAND ----------
 
-spark.table("churndb.rees46_customer_model").write.format("parquet").save("dbfs:/mnt/retailrocket/raw/rees46_model/")
+#spark.table("churndb.rees46_customer_model").write.format("parquet").save("dbfs:/mnt/retailrocket/raw/rees46_model/")
