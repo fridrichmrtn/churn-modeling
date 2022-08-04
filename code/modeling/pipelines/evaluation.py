@@ -224,18 +224,18 @@ def plot_bias_variance(df, metrics, figsize=(16,5)):
 
 # COMMAND ----------
 
-# TEST
-dataset_name = "retailrocket"
-evaluation = spark.table(f"churndb.{dataset_name}_evaluation").toPandas()
-display(get_ci(evaluation).fillna(0))
-display(get_tt(evaluation))
+# # TEST
+# dataset_name = "retailrocket"
+# evaluation = spark.table(f"churndb.{dataset_name}_evaluation").toPandas()
+# display(get_ci(evaluation).fillna(0))
+# display(get_tt(evaluation))
 
-# metrics = {"accuracy_score":{"label":"acc", "xlim":(0.8,1.01)},
-#      "f1_score":{"label":"f1", "xlim":(0.8,1.01)},
-#      "roc_auc_score":{"label":"auc", "xlim":(0.8,1.01)}}
+# # metrics = {"accuracy_score":{"label":"acc", "xlim":(0.8,1.01)},
+# #      "f1_score":{"label":"f1", "xlim":(0.8,1.01)},
+# #      "roc_auc_score":{"label":"auc", "xlim":(0.8,1.01)}}
 
-metrics = {"r2_score":{"label":"r2", "xlim":(0,1.01)},
-     "mean_squared_error":{"label":"mse", "xlim":(None,None)},
-     "mean_absolute_error":{"label":"mae", "xlim":(None,None)}}   
+# metrics = {"r2_score":{"label":"r2", "xlim":(0,1.01)},
+#      "mean_squared_error":{"label":"mse", "xlim":(None,None)},
+#      "mean_absolute_error":{"label":"mae", "xlim":(None,None)}}   
 
-plot_bias_variance(evaluation, metrics=metrics)  
+# plot_bias_variance(evaluation, metrics=metrics)  

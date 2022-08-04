@@ -140,14 +140,14 @@ models = {
                    [("rf", RandomForestRegressor())]},
            "space":
                {"rf__n_estimators":hp.randint("rf__n_estimators",25,1000),
-                "rf__max_features":hp.uniform("rf__max_features",0.2,1.0),
-                "rf__max_samples":hp.uniform("rf__max_samples",0.2,1.0),
+                "rf__max_features":hp.uniform("rf__max_features",0.2,.8),
+                "rf__max_samples":hp.uniform("rf__max_samples",0.2,.8),
                 "rf__max_depth":hp.randint("rf__max_depth",2,30),
                 "rf__min_samples_split":hp.randint("rf__min_samples_split",10**1,2*10**2),
                 "rf__min_samples_leaf":hp.randint("rf__min_samples_leaf",1,100),
                 #"dt__ccp_alpha":hp.uniform("dt__ccp_alpha",0,0.05),
-                "rf__min_impurity_decrease":hp.uniform("rf__min_impurity_decrease",0,.05),
-                "rf__min_weight_fraction_leaf":hp.uniform("rf__min_weight_fraction_leaf",0,.05)},
+                "rf__min_impurity_decrease":hp.uniform("rf__min_impurity_decrease",0,.1),
+                "rf__min_weight_fraction_leaf":hp.uniform("rf__min_weight_fraction_leaf",0,.1)},
            "preprocessing":"tree"},
     
    "hgb":{ # NOTE: ADD SUBSAMPLING?
@@ -163,8 +163,8 @@ models = {
                "hgb__max_depth":hp.randint("hgb__max_depth",2,30),
                "hgb__min_child_samples":hp.randint("hgb__min_child_samples",2,100),
                "hgb__subsample_freq":hp.randint("hgb__subsample_freq",1,50),
-               "hgb__subsample":hp.uniform("hgb__subsample",0.2,1.0),
-               "hgb__colsample_bytree ":hp.uniform("hgb__colsample_bytree",0.2,1.0),
+               "hgb__subsample":hp.uniform("hgb__subsample",0.2,0.8),
+               "hgb__colsample_bytree ":hp.uniform("hgb__colsample_bytree",0.2,0.8),
                "hgb__reg_lambda":hp.uniform("hgb__reg_lambda",10**-2,10**2)},
           "preprocessing":"tree"}
 }
