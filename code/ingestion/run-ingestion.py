@@ -16,18 +16,22 @@
 # ##
 # ### RETAIL ROCKET
 
-# dataset_name = "retailrocket"
+dataset_name = "retailrocket"
 
-# # LOAD TRANSFORM
-# events = construct_events(dataset_name)
-# save_events(events, dataset_name)
+# LOAD TRANSFORM
+#events = construct_events(dataset_name)
+#save_events(events, dataset_name)
 
-# # CUSTOMER MODEL
-# _prerun_optimize_recom(dataset_name)
-# customer_model = construct_customer_model(
-#      dataset_name, time_steps=4, week_target=4)
-# save_customer_model(
-#      customer_model, dataset_name, overwrite=True)
+# CUSTOMER MODEL
+#_prerun_optimize_recom(dataset_name)
+customer_model = construct_customer_model(
+     dataset_name, time_steps=4, week_target=4)
+save_customer_model(
+     customer_model, dataset_name, overwrite=True)
+
+# COMMAND ----------
+
+spark.table("churndb.retailrocket_customer_model").write.format("parquet").mode("overwrite").save("dbfs:/mnt/retailrocket/raw/customer_model/")
 
 # COMMAND ----------
 
@@ -42,7 +46,7 @@ dataset_name = "rees46"
 #save_events(events, dataset_name)
  
 # CUSTOMER MODEL
-_prerun_optimize_recom(dataset_name)
+#_prerun_optimize_recom(dataset_name)
 customer_model = construct_customer_model(
    dataset_name, time_steps=7, week_target=4)
 save_customer_model(
@@ -50,4 +54,4 @@ save_customer_model(
 
 # COMMAND ----------
 
-#spark.table("churndb.rees46_customer_model").write.format("parquet").save("dbfs:/mnt/rees46/raw/customer_model/")
+spark.table("churndb.rees46_customer_model").write.format("parquet").mode("overwrite").save("dbfs:/mnt/rees46/raw/customer_model/")
