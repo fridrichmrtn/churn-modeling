@@ -32,7 +32,8 @@ def _get_cols(train):
     helper_cols = ["user_id", "row_id", "time_step"] # NOTE: week_step?
     cust_val_cols = [c for c in train.columns if "customer_value" in c]
     class_set = set(target_cols+helper_cols+cust_val_cols)
-    reg_set = set(target_cols+helper_cols)
+    reg_set = class_set
+    #reg_set = set(target_cols+helper_cols+cust_val_cols)
     class_X = [c for c in train.columns if c not in class_set]
     reg_X = [c for c in train.columns if c not in reg_set]
     return {"classification":{"X":class_X,"y":class_y},
