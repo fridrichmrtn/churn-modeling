@@ -50,4 +50,4 @@ save_customer_model(
 
 # COMMAND ----------
 
-#spark.table("churndb.rees46_customer_model").write.format("parquet").save("dbfs:/mnt/retailrocket/raw/rees46_model/")
+#spark.table("churndb.rees46_customer_model").write.format("parquet").save("dbfs:/mnt/rees46/raw/customer_model/")
