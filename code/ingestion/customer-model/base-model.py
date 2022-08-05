@@ -118,9 +118,9 @@ def get_base_model(events, week_target):
     stat_exp = [f(c).alias(c+"_"+list(filter(None,str(f.__name__).split("_")))[0])                
         for f in stat_funcs for c in stat_cols]
     # hand-crafted interactions, possibly extend
-    int_exp = [(f.max("session_number")/f.max("session_recency")).alias("session_count_daily_ratio"),
-        (f.sum("click_count")/f.max("session_number")).alias("click_count_ratio"),
-        (f.sum("purchase_count")/f.max("session_number")).alias("transaction_count_ratio")]
+    int_exp = [(f.max("session_number")/f.max("session_recency")).alias("session_count_ratio"),
+        (f.sum("click_count")/f.max("session_recency")).alias("click_count_ratio"),
+        (f.sum("purchase_count")/f.max("session_recency")).alias("transaction_count_ratio")]
     agg_exp = stat_exp + int_exp
     base_features = sessions.groupBy("user_id").agg(*agg_exp)
     # lags
