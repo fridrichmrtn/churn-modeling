@@ -44,22 +44,24 @@ preprocessing = {
     task:{
         "smooth":
             {"steps":
-                [("variance_filter", VarianceThreshold()),
-                ("data_scaler", PowerTransformer()),
+                [("data_scaler", PowerTransformer()),
+                ("variance_filter", VarianceThreshold()),
                 ("feature_selector", HierarchicalFeatureSelector()),
                 ("data_sampler", "passthrough")],
             "space":
-                {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-3, 5*10**1),
-                "data_scaler":hp.choice("data_scaler", scaling[task]),
+                {"data_scaler":hp.choice("data_scaler", scaling[task]),
+                "variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-3, 10**-1),
                 "feature_selector__n_features":hp.randint("feature_selector__n_features", 5, 100),
                 "data_sampler":hp.choice("data_sampler", sampling[task])
                 }},
         "tree":
              {"steps":
-                  [("variance_filter", VarianceThreshold()),
+                  [("data_scaler", PowerTransformer()),
+                  ("variance_filter", VarianceThreshold()),
                   ("data_sampler", "passthrough")],
              "space":
-                 {"variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-3, 5*10**1),
+                 {"data_scaler":hp.choice("data_scaler", scaling[task]),
+                 "variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-3, 10**-1),
                  "data_sampler":hp.choice("data_sampler", sampling[task])}}} for task in scaling.keys()}
         
 #
