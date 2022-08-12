@@ -128,10 +128,10 @@ models = {
            "space":
                {"dt__max_depth":hp.randint("dt__max_depth",2,30),
                 "dt__min_samples_split":hp.randint("dt__min_samples_split",10**1,2*10**2),
-                "dt__min_samples_leaf":hp.randint("dt__min_samples_leaf",1,100),
+                "dt__min_samples_leaf":hp.randint("dt__min_samples_leaf",2,100),
                 #"dt__ccp_alpha":hp.uniform("dt__base_estimator__ccp_alpha",0,1),
-                "dt__min_impurity_decrease":hp.uniform("dt__min_impurity_decrease",0,.05),
-                "dt__min_weight_fraction_leaf":hp.uniform("dt__min_weight_fraction_leaf",0,.05)},
+                "dt__min_impurity_decrease":hp.uniform("dt__min_impurity_decrease",0,.1),
+                "dt__min_weight_fraction_leaf":hp.uniform("dt__min_weight_fraction_leaf",0,.1)},
            "preprocessing":"tree"},
     
     "rf":{
@@ -146,7 +146,7 @@ models = {
                 "rf__max_samples":hp.uniform("rf__max_samples",0.2,.8),
                 "rf__max_depth":hp.randint("rf__max_depth",2,30),
                 "rf__min_samples_split":hp.randint("rf__min_samples_split",10**1,2*10**2),
-                "rf__min_samples_leaf":hp.randint("rf__min_samples_leaf",1,100),
+                "rf__min_samples_leaf":hp.randint("rf__min_samples_leaf",2,100),
                 #"dt__ccp_alpha":hp.uniform("dt__ccp_alpha",0,0.05),
                 "rf__min_impurity_decrease":hp.uniform("rf__min_impurity_decrease",0,.1),
                 "rf__min_weight_fraction_leaf":hp.uniform("rf__min_weight_fraction_leaf",0,.1)},
@@ -159,7 +159,7 @@ models = {
               "regression":
                   [("hgb", LGBMRegressor())]},
           "space":
-              {"hgb__learning_rate":hp.uniform("hgb__learning_rate",0.01,.5),
+              {"hgb__learning_rate":hp.uniform("hgb__learning_rate",0.01,.25),
                "hgb__n_estimators":hp.randint("hgb__n_estimators",25,1000),
                "hgb__num_leaves":hp.randint("hgb__num_leaves",5**2,5**4),
                "hgb__max_depth":hp.randint("hgb__max_depth",2,30),
