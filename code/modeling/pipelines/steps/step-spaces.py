@@ -50,7 +50,7 @@ preprocessing = {
                 ("data_sampler", "passthrough")],
             "space":
                 {"data_scaler":hp.choice("data_scaler", scaling[task]),
-                "variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-3, 10**-1),
+                "variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-5, 10**-1),
                 "feature_selector__n_features":hp.randint("feature_selector__n_features", 5, 100),
                 "data_sampler":hp.choice("data_sampler", sampling[task])
                 }},
@@ -61,7 +61,7 @@ preprocessing = {
                   ("data_sampler", "passthrough")],
              "space":
                  {"data_scaler":hp.choice("data_scaler", scaling[task]),
-                 "variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-3, 10**-1),
+                 "variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-5, 10**-1),
                  "data_sampler":hp.choice("data_sampler", sampling[task])}}} for task in scaling.keys()}
         
 #
@@ -99,7 +99,7 @@ models = {
                   [("rbf", Nystroem()), ("svm_lin", LinearSVR(loss="squared_epsilon_insensitive", dual=False))]},
            "space":{
                "rbf__n_components":hp.randint("rbf__n_components",20,100),
-               "svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1)},
+               "svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**2)},
            "preprocessing":"smooth"},
     
     "mlp":{
@@ -152,22 +152,22 @@ models = {
                 "rf__min_weight_fraction_leaf":hp.uniform("rf__min_weight_fraction_leaf",0,.1)},
            "preprocessing":"tree"},
     
-   "hgb":{ # NOTE: ADD SUBSAMPLING?
+   "gbm":{ # NOTE: ADD SUBSAMPLING?
           "model":{
               "classification":
-                  [("hgb", LGBMClassifier())],
+                  [("gbm", LGBMClassifier())],
               "regression":
-                  [("hgb", LGBMRegressor())]},
+                  [("gbm", LGBMRegressor())]},
           "space":
-              {"hgb__learning_rate":hp.uniform("hgb__learning_rate",0.01,.25),
-               "hgb__n_estimators":hp.randint("hgb__n_estimators",25,1000),
-               "hgb__num_leaves":hp.randint("hgb__num_leaves",5**2,5**4),
-               "hgb__max_depth":hp.randint("hgb__max_depth",2,30),
-               "hgb__min_child_samples":hp.randint("hgb__min_child_samples",2,100),
-               "hgb__subsample_freq":hp.randint("hgb__subsample_freq",1,50),
-               "hgb__subsample":hp.uniform("hgb__subsample",0.2,0.8),
-               "hgb__colsample_bytree ":hp.uniform("hgb__colsample_bytree",0.2,0.8),
-               "hgb__reg_lambda":hp.uniform("hgb__reg_lambda",10**-2,10**2)},
+              {"gbm__learning_rate":hp.uniform("gbm__learning_rate",0.01,.25),
+               "gbm__n_estimators":hp.randint("gbm__n_estimators",25,1000),
+               "gbm__num_leaves":hp.randint("gbm__num_leaves",5**2,5**4),
+               "gbm__max_depth":hp.randint("gbm__max_depth",2,30),
+               "gbm__min_child_samples":hp.randint("gbm__min_child_samples",2,100),
+               "gbm__subsample_freq":hp.randint("gbm__subsample_freq",1,10),
+               "gbm__subsample":hp.uniform("gbm__subsample",0.2,0.8),
+               "gbm__colsample_bytree ":hp.uniform("gbm__colsample_bytree",0.2,0.8),
+               "gbm__reg_lambda":hp.uniform("gbm__reg_lambda",10**-2,10**2)},
           "preprocessing":"tree"}
 }
     
