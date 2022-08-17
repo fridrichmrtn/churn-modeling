@@ -71,7 +71,7 @@ def _impute_customer_model(customer_model):
     customer_model = customer_model.fillna(0, subset=zero_cols)
     # MAX IMP
     max_cols = [c for c in customer_model.columns for fc in\
-        ["^inter_", "^time_to_", "_variation$"] if re.search(fc, c) is not None]
+        ["^inter_", "^time_to_", "_cv$"] if re.search(fc, c) is not None]
     max_expr = [f.max(c).alias(c) for c in max_cols]
     max_vals = customer_model.agg(*max_expr).toPandas().transpose().to_dict()[0]
     customer_model = customer_model.fillna(max_vals)

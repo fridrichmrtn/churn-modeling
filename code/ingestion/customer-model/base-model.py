@@ -5,7 +5,7 @@
 ##
 ### HELPERS
 
-def _variation(colname):
+def _cv(colname):
     # coeficient of variation
     import pyspark.sql.functions as f
     return (f.stddev_samp(colname)/f.mean(colname))
@@ -114,7 +114,7 @@ def get_base_model(events, week_target):
     # statistics
     excl_cols = set(["user_session_id", "user_id", "start", "end", "start_monthgroup", "purchase_profit"])
     stat_cols = [c for c in sessions.columns if c not in excl_cols]
-    stat_funcs = [f.mean, f.sum, f.min, f.max, f.stddev_samp, _variation] # extend?
+    stat_funcs = [f.mean, f.sum, f.min, f.max, f.stddev_samp, _cv] # extend?
     stat_exp = [f(c).alias(c+"_"+list(filter(None,str(f.__name__).split("_")))[0])                
         for f in stat_funcs for c in stat_cols]
     # hand-crafted interactions, possibly extend
