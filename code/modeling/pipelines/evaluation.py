@@ -205,6 +205,7 @@ def get_tt(df):
     return df
 
 # b-v trade-off
+# NOTE: clean-up model names
 def plot_bias_variance(df, metrics, figsize=(16,5)):
     tdf = pd.pivot_table(df,
         index=["pipe","time_step", "metric"],
@@ -239,8 +240,3 @@ metrics = {"r2_score":{"label":"r2", "xlim":(0,1.01)},
      "mean_absolute_error":{"label":"mae", "xlim":(None,None)}}   
 
 plot_bias_variance(evaluation, metrics=metrics)  
-
-# COMMAND ----------
-
-import sklearn
-sklearn.__version__
