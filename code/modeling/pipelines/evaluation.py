@@ -35,28 +35,37 @@ def _get_class_metrics(df):
 ##
 ### CAMPAIGN METRICS
 
-def _get_campaign_metrics(df):
+def _get_campaing_metrics_data(df):
     df = df.copy().sort_values("expected_profit", ascending=False)
     df["cumulative_expected_profit"] = df.expected_profit.cumsum()
     df["cumulative_actual_profit"] = df.target_actual_profit.cumsum()
     df["percentile"] = df.expected_profit.rank(ascending=False, pct=True)
+    return df
+    
+def _get_campaign_metrics(df):
+    df = _get_campaing_metrics_data(df)
     opt_ind =  df.cumulative_expected_profit.idxmax()
     return pd.Series({"maximum_expected_profit":df.cumulative_expected_profit[opt_ind],
             "maximum_actual_profit":df.cumulative_actual_profit[opt_ind],
             "percentile":df.percentile[opt_ind]})
     
+def _get_reg_profit_data(df):
+    return df.rename(columns={"predictions":"expected_profit"})
+    
 def _get_reg_profit(df):
     return _get_campaign_metrics(
-        df.rename(columns={"predictions":"expected_profit"}))
-
-def _get_class_profit(df, params):
+        _get_reg_profit_data(df))
+    
+def _get_class_profit_data(df, params):
     df = df.merge(params, on="user_id", how="inner")
     df["expected_profit"] = df.predictions*df.gamma*(df.target_customer_value_lag1-df.delta)\
         -(1-df.predictions)*df.psi*df.delta
-    df = df.groupby("user_id", as_index=False)[["expected_profit", "target_actual_profit"]].mean()    
-    return _get_campaign_metrics(df)
-
+    df = df.groupby("user_id", as_index=False)[["expected_profit", "target_actual_profit"]].mean()
+    return df
     
+def _get_class_profit(df, params):  
+    return _get_campaign_metrics(_get_class_profit_data(df, params))
+
 #
 ##
 ### RUNTIMES
@@ -134,15 +143,18 @@ def save_evaluation(dataset_name, evaluation):
 
 # COMMAND ----------
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-def plot_simulated_profit(sp):    
+#
+##
+### ADDITIONAL DIAGNOSTICS
+
+# plot cumulative curves
+def plot_cumulative_curves(sp):    
     f, a = plt.subplots(1,1, figsize=(10,7))
     sns.lineplot(#data=sp,
-        x=sp.perc, y=sp.cecp, legend=False,
+        x=sp.percentile, y=sp.cumulative_expected_profit, legend=False,
         color=sns.color_palette("rocket")[0], ax=a);
     sns.lineplot(#data=sp,
-        x=sp.perc, y=sp.cacp, legend=False,
+        x=sp.percentile, y=sp.cumulative_actual_profit, legend=False,
         color=sns.color_palette("rocket")[3], ax=a);
     a.set_ylabel("profit");
     a.set_xlabel("percentile");
@@ -150,29 +162,21 @@ def plot_simulated_profit(sp):
         labels=["expected profit", "actual profit"]);
     a.axhline(0, linestyle="dotted", c="k");
     return None
-#plot_simulated_profit(profit)    
 
-# COMMAND ----------
+def plot_model_cumulative_curves(dataset_name, pipe_name, set_type="test", time_step=0):
+    customer_model = spark.table(f"churndb.{dataset_name}_customer_model")
+    predictions = spark.table(f"churndb.{dataset_name}_predictions")
+    cols = ["row_id", "target_event", "target_actual_profit", "target_customer_value_lag1"]
+    groups = ["pipe", "task", "set_type", "time_step"]
+    pf = (f.col("pipe")==pipe_name) & (f.col("set_type")==set_type) & (f.col("time_step")==time_step)
+    predictions = predictions.where(pf).join(customer_model.select(cols), on=["row_id"]).toPandas()
 
-#
-##
-### ADDITIONAL DIAGNOSTICS
-
-# plot cumulative curves
-def plot_simulated_profit(sp):    
-    f, a = plt.subplots(1,1, figsize=(15,10))
-    sns.lineplot(#data=sp,
-        x=sp.perc, y=sp.cecp, legend=False,
-        color=sns.color_palette("rocket")[0], ax=a);
-    sns.lineplot(#data=sp,
-        x=sp.perc, y=sp.cacp, legend=False,
-        color=sns.color_palette("rocket")[3], ax=a);
-    a.set_ylabel("profit");
-    a.set_xlabel("percentile");
-    a.legend(loc="lower left",
-        labels=["expected profit", "actual profit"]);
-    a.axhline(0, linestyle="dotted", c="k");
-    return None    
+    if "class" in pipe_name:
+        params = spark.table(f"churndb.{dataset_name}_campaign_params").toPandas()
+        profit_data = _get_class_profit_data(predictions, params)
+    else:
+        profit_data = _get_reg_profit_data(predictions)
+    plot_cumulative_curves(_get_campaing_metrics_data(profit_data))
 
 # expected values & ci bounds
 def _ci(vec, alpha=0.95):
@@ -211,32 +215,40 @@ def plot_bias_variance(df, metrics, figsize=(16,5)):
         index=["pipe","time_step", "metric"],
             columns=["set_type"]).reset_index()
     tdf.columns = ["pipe","time_step", "metric", "test", "train"]
+    tdf["pipe"] = tdf["pipe"].apply(lambda x: "-".join(x.split("_")[:-1]))
+    pipe_order = ["lr", "svm-lin", "svm-rbf", "mlp", "dt", "rf", "gbm"]
+    
     f, axs = plt.subplots(1,3, figsize=figsize);
     for i,m in enumerate(metrics.items()):
         a = axs.flatten()[i]
-        scatter = sns.scatterplot(data=tdf[tdf.metric==m[0]], x="train", y="test", hue="pipe", ax=a);        
+        scatter = sns.scatterplot(data=tdf[tdf.metric==m[0]], x="train", y="test",
+            hue="pipe", hue_order=pipe_order, ax=a);        
         sns.lineplot(x=[0,1],y=[0,1], color="gray", ax=a, linestyle="dotted",  transform=scatter.transAxes);
         a.set_xlim(m[1]["xlim"]);
         a.set_ylim(a.set_xlim());
         a.set_xlabel(m[1]["label"]+" on training split");
         a.set_ylabel(m[1]["label"]+" on testing split");
         a.legend_.remove();
-    axs.flatten()[-1].legend(loc="lower right", frameon=False);
+    axs.flatten()[-1].legend(loc="lower left", bbox_to_anchor=(1.04,0), frameon=False);
 
 # COMMAND ----------
 
 # TEST
 dataset_name = "retailrocket"
 evaluation = spark.table(f"churndb.{dataset_name}_evaluation").toPandas()
-display(get_ci(evaluation).fillna(0))
-display(get_tt(evaluation))
+# display(get_ci(evaluation).fillna(0))
+# display(get_tt(evaluation))
 
-# metrics = {"accuracy_score":{"label":"acc", "xlim":(0.8,1.01)},
-#      "f1_score":{"label":"f1", "xlim":(0.8,1.01)},
-#      "roc_auc_score":{"label":"auc", "xlim":(0.8,1.01)}}
+metrics = {"accuracy_score":{"label":"acc", "xlim":(0.8,1.01)},
+     "f1_score":{"label":"f1", "xlim":(0.8,1.01)},
+     "roc_auc_score":{"label":"auc", "xlim":(0.8,1.01)}}
 
-metrics = {"r2_score":{"label":"r2", "xlim":(0,1.01)},
-     "mean_squared_error":{"label":"mse", "xlim":(None,None)},
-     "mean_absolute_error":{"label":"mae", "xlim":(None,None)}}   
+# metrics = {"r2_score":{"label":"r2", "xlim":(0,1.01)},
+#      "mean_squared_error":{"label":"mse", "xlim":(None,None)},
+#      "mean_absolute_error":{"label":"mae", "xlim":(None,None)}}   
 
 plot_bias_variance(evaluation, metrics=metrics)  
+
+# COMMAND ----------
+
+plot_model_cumulative_curves("retailrocket", "gbm_reg")
