@@ -148,35 +148,38 @@ def save_evaluation(dataset_name, evaluation):
 ### ADDITIONAL DIAGNOSTICS
 
 # plot cumulative curves
+def get_cumulative_data(dataset_name, pipe_name,
+    set_type="test", time_step=0):
+    customer_model = spark.table(f"churndb.{dataset_name}_customer_model")
+    predictions = spark.table(f"churndb.{dataset_name}_predictions")
+    cols = ["row_id", "target_event", "target_actual_profit", "target_customer_value_lag1"]
+    pred_filter = (f.col("pipe")==pipe_name) & (f.col("set_type")==set_type) & (f.col("time_step")==time_step)
+    predictions = predictions.where(pred_filter).join(customer_model.select(cols), on=["row_id"]).toPandas()
+    if "class" in pipe_name:
+        params = spark.table(f"churndb.{dataset_name}_campaign_params").toPandas()
+        df = _get_class_profit_data(predictions, params)
+    else:
+        df = _get_reg_profit_data(predictions)
+    return _get_campaing_metrics_data(df)
+
 def plot_cumulative_curves(sp):    
-    f, a = plt.subplots(1,1, figsize=(10,7))
+    f, a = plt.subplots(1,1, figsize=(7,7))
     sns.lineplot(#data=sp,
         x=sp.percentile, y=sp.cumulative_expected_profit, legend=False,
         color=sns.color_palette("rocket")[0], ax=a);
     sns.lineplot(#data=sp,
         x=sp.percentile, y=sp.cumulative_actual_profit, legend=False,
         color=sns.color_palette("rocket")[3], ax=a);
+    a.set_ylim(-225000,225000)
     a.set_ylabel("profit");
     a.set_xlabel("percentile");
     a.legend(loc="lower left",
         labels=["expected profit", "actual profit"]);
+    #a.get_legend().remove();
     a.axhline(0, linestyle="dotted", c="k");
     return None
 
-def plot_model_cumulative_curves(dataset_name, pipe_name, set_type="test", time_step=0):
-    customer_model = spark.table(f"churndb.{dataset_name}_customer_model")
-    predictions = spark.table(f"churndb.{dataset_name}_predictions")
-    cols = ["row_id", "target_event", "target_actual_profit", "target_customer_value_lag1"]
-    groups = ["pipe", "task", "set_type", "time_step"]
-    pf = (f.col("pipe")==pipe_name) & (f.col("set_type")==set_type) & (f.col("time_step")==time_step)
-    predictions = predictions.where(pf).join(customer_model.select(cols), on=["row_id"]).toPandas()
 
-    if "class" in pipe_name:
-        params = spark.table(f"churndb.{dataset_name}_campaign_params").toPandas()
-        profit_data = _get_class_profit_data(predictions, params)
-    else:
-        profit_data = _get_reg_profit_data(predictions)
-    plot_cumulative_curves(_get_campaing_metrics_data(profit_data))
 
 # expected values & ci bounds
 def _ci(vec, alpha=0.95):
@@ -251,4 +254,5 @@ plot_bias_variance(evaluation, metrics=metrics)
 
 # COMMAND ----------
 
-plot_model_cumulative_curves("retailrocket", "gbm_reg")
+df = get_cumulative_data("retailrocket", "gbm_reg")
+plot_cumulative_curves(df)
