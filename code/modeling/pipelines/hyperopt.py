@@ -8,6 +8,7 @@ from functools import partial
 import mlflow
 from hyperopt import SparkTrials, tpe, fmin, space_eval, STATUS_OK
 from sklearn.model_selection import train_test_split
+from sklearn.base import clone
 from scipy.stats import hmean
 from sklearn.metrics import (accuracy_score, precision_score,
     recall_score, f1_score, roc_auc_score, r2_score,
@@ -86,6 +87,6 @@ def optimize_pipeline(data, pipe):
                     seed=hyperopt_config["seed"]),
             space=pipe["space"], max_evals=hyperopt_config["max_evals"], 
             trials=hyperopt_config["trials"](parallelism=5), algo=hyperopt_config["algo"])
-    pipe["steps"] =  pipe["steps"].set_params(
+    pipe["steps"] =  clone(pipe["steps"]).set_params(
         **space_eval(pipe["space"], space_optimized))
     return pipe
