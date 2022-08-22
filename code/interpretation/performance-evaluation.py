@@ -101,8 +101,8 @@ experimental_data = experimental_data.melt(
     id_vars=["type","week_step", "pipe"],
         var_name="metric", value_name="value")
 
-display(get_ci(experimental_data).head())
-display(get_tt(experimental_data).head())
+print(get_ci(experimental_data).head())
+print(get_tt(experimental_data).head())
 
 metrics = {"accuracy_score":{"label":"acc", "xlim":(0,1)},
     "f1_score":{"label":"f1", "xlim":(0,1)},
