@@ -30,7 +30,6 @@ def _get_class_metrics(df):
                f(df["target_event"], (df["predictions"]>0.5).astype("int")) for n,f in metrics.items()}
     return pd.Series(results)
 
-
 #
 ##
 ### CAMPAIGN METRICS
@@ -134,9 +133,10 @@ def evaluate_predictions(dataset_name):
     return pd.concat([reg_metrics, reg_profit,
         class_metrics, class_profit, runtimes]).reset_index(drop=True)
     
-def save_evaluation(dataset_name, evaluation):  
+def save_evaluation(dataset_name, evaluation):
+    spark.sql(f"DROP TABLE IF EXISTS churndb.{dataset_name}_evaluation;")
     spark.createDataFrame(evaluation)\
-        .write.format("delta").mode("overwrite")\
+        .write.format("delta").mode("append")\
             .saveAsTable(f"churndb.{dataset_name}_evaluation")
     return None        
 
@@ -162,7 +162,7 @@ def get_cumulative_data(dataset_name, pipe_name,
         df = _get_reg_profit_data(predictions)
     return _get_campaing_metrics_data(df)
 
-def plot_cumulative_curves(sp):    
+def plot_cumulative_curves(sp, remove_legend=True):    
     f, a = plt.subplots(1,1, figsize=(7,7))
     sns.lineplot(#data=sp,
         x=sp.percentile, y=sp.cumulative_expected_profit, legend=False,
@@ -173,10 +173,11 @@ def plot_cumulative_curves(sp):
     a.set_ylim(-225000,225000)
     a.set_ylabel("profit");
     a.set_xlabel("percentile");
-    a.legend(loc="lower left",
+    a.legend(loc="lower right",
         labels=["expected profit", "actual profit"]);
-    #a.get_legend().remove();
     a.axhline(0, linestyle="dotted", c="k");
+    if remove_legend:
+        a.get_legend().remove();    
     return None
 
 
@@ -225,7 +226,7 @@ def plot_bias_variance(df, metrics, figsize=(16,5)):
     for i,m in enumerate(metrics.items()):
         a = axs.flatten()[i]
         scatter = sns.scatterplot(data=tdf[tdf.metric==m[0]], x="train", y="test",
-            hue="pipe", hue_order=pipe_order, ax=a);        
+            hue="pipe", hue_order=pipe_order, palette="rocket", ax=a);        
         sns.lineplot(x=[0,1],y=[0,1], color="gray", ax=a, linestyle="dotted",  transform=scatter.transAxes);
         a.set_xlim(m[1]["xlim"]);
         a.set_ylim(a.set_xlim());
@@ -236,9 +237,18 @@ def plot_bias_variance(df, metrics, figsize=(16,5)):
 
 # COMMAND ----------
 
-# # TEST
+# # dataset_name = "retailrocket"
+# evaluation = spark.table(f"churndb.{dataset_name}_evaluation").toPandas()
+# evaluation = evaluation.loc[(evaluation.time_step==2)&\
+#     (evaluation.metric=="maximum_actual_profit") & (evaluation.set_type=="test"),:]
+# evaluation.sort_values("value")
+
+# COMMAND ----------
+
+# TEST
 # dataset_name = "retailrocket"
 # evaluation = spark.table(f"churndb.{dataset_name}_evaluation").toPandas()
+# evaluation = evaluation.loc[evaluation.time_step<4,:]
 # display(get_ci(evaluation).fillna(0))
 # display(get_tt(evaluation))
 
@@ -246,13 +256,13 @@ def plot_bias_variance(df, metrics, figsize=(16,5)):
 #      "f1_score":{"label":"f1", "xlim":(0.8,1.01)},
 #      "roc_auc_score":{"label":"auc", "xlim":(0.8,1.01)}}
 
-# metrics = {"r2_score":{"label":"r2", "xlim":(-0.01,1.01)},
-#      "mean_absolute_error":{"label":"mae", "xlim":(None,None)},
-#      "mean_squared_error":{"label":"mse", "xlim":(None,None)}}   
+# # metrics = {"r2_score":{"label":"r2", "xlim":(-0.01,1.01)},
+# #      "mean_absolute_error":{"label":"mae", "xlim":(None,None)},
+# #      "mean_squared_error":{"label":"mse", "xlim":(None,None)}}   
 
 # plot_bias_variance(evaluation, metrics=metrics)  
 
 # COMMAND ----------
 
 # df = get_cumulative_data("retailrocket", "gbm_reg")
-# plot_cumulative_curves(df)
+# plot_cumulative_curves(df, False)

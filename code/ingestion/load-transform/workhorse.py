@@ -52,7 +52,7 @@ def _rees46_filter(events):
     user_filter = (events.where(f.col("event_type_name")=="purchase")
          .groupBy("user_id")
              .agg(f.countDistinct(f.col("user_session_id")).alias("purchase_count"))
-         .where(f.col("purchase_count")>=10)
+         .where(f.col("purchase_count")>=20)
          .select("user_id"))
     return events.join(user_filter, on=["user_id"], how="inner")
 

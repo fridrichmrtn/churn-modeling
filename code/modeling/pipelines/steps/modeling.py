@@ -11,6 +11,7 @@ from sklearn.preprocessing import OneHotEncoder, PowerTransformer, QuantileTrans
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import ElasticNet
 from sklearn.calibration import CalibratedClassifierCV, _SigmoidCalibration
+from sklearn.ensemble import BaggingRegressor
 
 # COMMAND ----------
 
@@ -115,10 +116,9 @@ class ElasticNetC(ElasticNet):
 ### CALIBRATION
 
 class CalibratedClassifierCV(CalibratedClassifierCV):
-    #def __init__(self, base_estimator, ensemble=False, **kwargs): # ensemble, cv):
-    #    super().__init__(base_estimator, ensemble=False, **kwargs)
-    #    self.ensemble = ensemble
-    #    self.cv=cv
+    def __init__(self, base_estimator, n_jobs=3, **kwargs):
+        super().__init__(base_estimator, **kwargs)
+        self.n_jobs = n_jobs
         
     def predict(self, X):
         return self.predict_proba(X)[:,1]
@@ -134,6 +134,13 @@ class CalibratedPassthrough(BaseEstimator):
     
     def predict(self, X):
         return self.fitted.predict(X)
+      
+class CalibratedRegression(BaggingRegressor):
+    def __init__(self, base_estimator, n_estimators=5,
+        max_samples=0.8, n_jobs=3, **kwargs):
+        super().__init__(base_estimator, **kwargs)
+        self.max_samples = max_samples
+        self.n_jobs = n_jobs
 
 # COMMAND ----------
 
