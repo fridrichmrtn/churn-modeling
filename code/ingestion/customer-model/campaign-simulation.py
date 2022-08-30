@@ -11,7 +11,7 @@ simulation_config = {
         "psi":{"alpha":6.12, "beta":3.15},
         "n_iter":1000},
     "rees46":{"gamma":{"alpha":2.042, "beta":202.116},
-        "delta":10, 
+        "delta":20, 
         "psi":{"alpha":6.12, "beta":3.15},
         "n_iter":1000}}
 

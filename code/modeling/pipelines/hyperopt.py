@@ -15,7 +15,7 @@ from sklearn.metrics import (accuracy_score, precision_score,
     mean_absolute_error, mean_squared_error)
     
 hyperopt_config = {
-    "max_evals":25,
+    "max_evals":15,
     "trials":SparkTrials,
     "algo":tpe.suggest,
     "seed":20220602}
@@ -26,11 +26,25 @@ hyperopt_config = {
 ##
 ### PIPELINE HYPEROPT
 
+def _load_optimized(exp_id):
+    experiment_data =  mlflow.search_runs(experiment_ids=exp_id,
+        filter_string="status = 'FINISHED'",
+        search_all_experiments=True)
+    parent_run_id = experiment_data\
+        .loc[experiment_data["tags.mlflow.parentRunId"].isin([None]),:]\
+            .sort_values("end_time").run_id.values[-1]
+    run_id = experiment_data\
+        .loc[experiment_data["tags.mlflow.parentRunId"]==parent_run_id]\
+            .sort_values("metrics.loss").run_id.values[0]
+    space = mlflow.get_run(run_id=run_id).data.params  
+    return {k:float(v) if "." in v else int(v)
+        for k, v in space.items()}
+
 def _train_test_dict(task, X, y, test_size, seed):
     strat_y = y
     if task=="regression":
-        strat_y = np.digitize(y, bins=np.percentile(y, q=[0,25,50,75]))
-        #strat_y = None
+        #strat_y = np.digitize(y, bins=np.percentile(y, q=[0,33,66]))
+        strat_y = None
     X_train, X_test, y_train, y_test = train_test_split(X, y,
         test_size=test_size, stratify=strat_y, random_state=seed) 
     return {"train":{"X":X_train, "y":y_train},
@@ -72,21 +86,25 @@ def _evaluate_hyperopt(params, task, model, X, y, seed):
     model.fit(data_dict["train"]["X"], data_dict["train"]["y"])
     metrics = {n+"_"+m:v for n, data in data_dict.items()
         for m,v in _get_performance(task, model, data["X"], data["y"]).items()}
-    return {"loss": -metrics["test_loss"], "status":STATUS_OK}
+    return {"loss": -metrics["test_loss"], "status":STATUS_OK}  
 
-def optimize_pipeline(data, pipe):
+def optimize_pipeline(data, pipe, force=True):
     X, y = get_Xy(data, pipe)
-    
-    exp_name = "/{}/modeling/hyperopt/{}_{}".format(data["name"],pipe["name"],data["time_step"])
+    exp_name = "/{}/modeling/hyperopt/{}_{}".format(
+        data["name"],pipe["name"],data["time_step"])
     exp_id = get_exp_id(exp_name)
-    mlflow.set_experiment(experiment_id=exp_id)
-    with mlflow.start_run() as run:
-        space_optimized = fmin(
-            fn=partial(_evaluate_hyperopt,
-                X=X, y=y, task=pipe["task"], model=pipe["steps"],
-                    seed=hyperopt_config["seed"]),
-            space=pipe["space"], max_evals=hyperopt_config["max_evals"], 
-            trials=hyperopt_config["trials"](parallelism=5), algo=hyperopt_config["algo"])
-    pipe["steps"] =  clone(pipe["steps"]).set_params(
+    if not force:
+        space_optimized = _load_optimized(exp_id)
+    else:
+        mlflow.set_experiment(experiment_id=exp_id)
+        with mlflow.start_run() as run:
+            space_optimized = fmin(
+                fn=partial(_evaluate_hyperopt,
+                    X=X, y=y, task=pipe["task"], model=pipe["steps"],
+                        seed=hyperopt_config["seed"]),
+                space=pipe["space"], max_evals=hyperopt_config["max_evals"], 
+                    trials=hyperopt_config["trials"](parallelism=3),
+                        algo=hyperopt_config["algo"])
+    pipe["steps"] = clone(pipe["steps"]).set_params(
         **space_eval(pipe["space"], space_optimized))
     return pipe

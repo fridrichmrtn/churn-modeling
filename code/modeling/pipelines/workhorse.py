@@ -29,11 +29,10 @@ def _get_cols(train):
     class_y = ["target_event"]
     reg_y = ["target_actual_profit"]
     target_cols = [c for c in train.columns if "target_" in c]
-    helper_cols = ["user_id", "row_id", "time_step"] # NOTE: week_step?
-    cust_val_cols = [c for c in train.columns if "customer_value" in c]
-    class_set = set(target_cols+helper_cols+cust_val_cols)
-    reg_set = class_set
-    #reg_set = set(target_cols+helper_cols+cust_val_cols)
+    helper_cols = ["user_id", "row_id", "time_step"]
+    cust_val_cols = [c for c in train.columns if "customer_value" in c ]
+    class_set = set(target_cols+helper_cols)
+    reg_set = set(target_cols+helper_cols)
     class_X = [c for c in train.columns if c not in class_set]
     reg_X = [c for c in train.columns if c not in reg_set]
     return {"classification":{"X":class_X,"y":class_y},
@@ -92,13 +91,12 @@ def _save_predictions(dataset_name, predictions):
 def glue_pipeline(dataset_name, time_range, overwrite=True):
     if overwrite:
         spark.sql(f"DROP TABLE IF EXISTS churndb.{dataset_name}_predictions;")
-        spark.sql(f"DROP TABLE IF EXISTS churndb.{dataset_name}_evaluation;")
+        
     pipelines = construct_pipelines()
     for time_step in time_range:
         data = _get_dataset(dataset_name, time_step)
         for pipe_name, pipe in pipelines.items():
-            pipe = optimize_pipeline(data["train"], pipe)
+            pipe = optimize_pipeline(data["train"], pipe, force=True)
             pipe = _fit_calibrated_pipeline(data["train"], pipe)
             _save_predictions(dataset_name, _get_predictions(data, pipe))
-    save_evaluation("retailrocket", evaluate_predictions("retailrocket"))
     return None
