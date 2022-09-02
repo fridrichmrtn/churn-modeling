@@ -183,9 +183,9 @@ models = {
 #     "rf":{
 #            "model":{
 #                "classification":
-#                    [("rf", RandomForestClassifier(n_jobs=3))],
+#                    [("rf", RandomForestClassifier(n_jobs=-1))],
 #                "regression":
-#                    [("rf", TransformedTargetRegressor(regressor=RandomForestRegressor(n_jobs=3),
+#                    [("rf", TransformedTargetRegressor(regressor=RandomForestRegressor(n_jobs=-1),
 #                        transformer=PowerTransformer()))]},
 #            "space":
 #                {"classification":
@@ -212,9 +212,9 @@ models = {
 #    "gbm":{
 #           "model":{
 #               "classification":
-#                   [("gbm", LGBMClassifier(n_jobs=3))],
+#                   [("gbm", LGBMClassifier(n_jobs=-1))],
 #               "regression":
-#                   [("gbm", TransformedTargetRegressor(regressor=LGBMRegressor(n_jobs=3),
+#                   [("gbm", TransformedTargetRegressor(regressor=LGBMRegressor(n_jobs=-1),
 #                       transformer=PowerTransformer()))]},
 #           "space":
 #               {"classification":

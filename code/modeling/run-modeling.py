@@ -13,16 +13,16 @@
 # COMMAND ----------
 
 dataset_name = "rees46"
-glue_pipeline(dataset_name=dataset_name,
-    time_range=range(4), overwrite=False)
-#save_evaluation(dataset_name=dataset_name,
-#   evaluation=evaluate_predictions(dataset_name=dataset_name))
+# glue_pipeline(dataset_name=dataset_name,
+#     time_range=range(4), overwrite=False)
+save_evaluation(dataset_name=dataset_name,
+  evaluation=evaluate_predictions(dataset_name=dataset_name))
 
 # NOTE:
     # TRAINING AND PREDICTION IS DONE FOR ALL MODELS EXCEPT MLP
     # COPY PREDICTIONS TO NEW TABLE - DONE
-    # TRY TO JUST ADD MLP PREDICTIONS
-    # SAVE EVALUATION
+    # TRY TO JUST ADD MLP PREDICTIONS - DONE
+    # SAVE EVALUATION ON BEEFY MACHINE
 
 # COMMAND ----------
 
