@@ -1,0 +1,88 @@
+# Databricks notebook source
+import numpy as np
+import pandas as pd
+import shap
+from imblearn.pipeline import Pipeline
+from sklearn.preprocessing import QuantileTransformer
+from sklearn.cluster import AgglomerativeClustering
+from mlflow.sklearn import load_model, save_model
+import pyspark.sql.functions as f
+
+# COMMAND ----------
+
+def _optimize_numeric_dtypes(df):
+    float_cols = df.select_dtypes("float").columns
+    int_cols = df.select_dtypes("integer").columns
+    df[float_cols] = df[float_cols].\
+        apply(pd.to_numeric, downcast="float")
+    df[int_cols] = df[int_cols].\
+        apply(pd.to_numeric, downcast="integer")
+    return df
+
+# NOTE: port this to spark
+def _get_samples(df, in_cols, n_samples, random_state=1):
+    df = _optimize_numeric_dtypes(df.toPandas())
+    # clustering
+    n_clusters = int(n_samples/5)
+    pipeline = Pipeline([("scale", QuantileTransformer()),
+        ("clu", AgglomerativeClustering(n_clusters=n_clusters))])
+    labels = pipeline.fit_predict(df.loc[:,in_cols])
+    labels = pd.DataFrame(labels, columns=["label"])
+    fractions = labels.reset_index()\
+        .groupby("label", as_index=False).count()\
+            .rename(columns={"index":"count"})
+    fractions["fractions"] = fractions["count"]/n_samples
+    labels = labels.merge(fractions, on=["label"])   
+    # sampling
+    df = df.sample(n=n_samples, weights=labels.fractions,
+        random_state=random_state)
+    return spark.createDataFrame(df)
+
+def _get_data(dataset_name, time_step, n_samples):
+    df = spark.table(f"churndb.{dataset_name}_customer_model")
+    out_cols = ["user_id", "row_id", "time_step"]+\
+        [c for c in df.columns if "target_" in c]
+    in_cols = [c for c in df.columns if c not in out_cols]
+    train = df.where(f.col("time_step")>time_step)
+    test = df.where(f.col("time_step")==time_step)
+    #test = _get_samples(test, in_cols, n_samples).repartition(40)
+    test = test.repartition(40)
+    return {"train":train.select(in_cols),
+        "test":test.select(in_cols),
+        "user_id":test.select("user_id")}
+
+def _get_explainer(model, df):
+    df = _optimize_numeric_dtypes(df.toPandas())
+    return shap.Explainer(model.predict, df, max_evals=550)
+
+def _compute_shap(explainer, df):
+    def _get_shap(iterator, explainer=explainer):
+        for X in iterator:
+            yield pd.DataFrame(explainer(np.array(X)).values)
+    return df.mapInPandas(_get_shap, schema=df.schema)
+    
+def glue_shap(dataset_name, time_step, pipe):
+    model = load_model(f"models:/{dataset_name}_{pipe}_{time_step}/None")
+    shap_data = _get_data(dataset_name, time_step, 1000)
+    explainer = _get_explainer(model, shap_data["train"])
+    shap_values = _compute_shap(explainer, shap_data["test"])
+    shap_values.withColumn("pipe", f.lit(pipe))\
+        .write.saveAsTable(f"churndb.{dataset_name}_shap_values",
+               mode="append")
+    shap_data["test"].withColumn("pipe", f.lit(pipe))\
+        .write.saveAsTable(f"churndb.{dataset_name}_shap_data",
+               mode="append")
+    return None
+
+# COMMAND ----------
+
+spark.sql("DROP TABLE IF EXISTS churndb.retailrocket_shap_values;")
+spark.sql("DROP TABLE IF EXISTS churndb.retailrocket_shap_data;")
+#glue_shap("retailrocket", 0, "svm_rbf_class")
+glue_shap("retailrocket", 0, "gbm_reg")
+
+# COMMAND ----------
+
+# spark.sql("DROP TABLE IF EXISTS churndb.rees46_shap_values;")
+# glue_shap("rees46", 0, "rf_class")
+# glue_shap("rees46", 0, "gbm_reg")
