@@ -23,6 +23,24 @@ from pyspark.sql import functions as f
 
 # COMMAND ----------
 
+# TEST CASES
+def _get_features(df):
+    out_cols = ["user_id", "row_id", "time_step", "pipe"]+\
+        [c for c in df.columns if "target_" in c]
+    return [c for c in df.columns if c not in out_cols]
+
+values = spark.table("churndb.retailrocket_shap_values")\
+    .where(f.col("pipe")=="gbm_reg").orderBy(f.col("row_id"))
+in_cols = _get_features(values)
+values = values.select(in_cols).toPandas()
+data = spark.table("churndb.retailrocket_shap_data")\
+   .where(f.col("pipe")=="gbm_reg").orderBy(f.col("row_id"))
+data = data.select(in_cols).toPandas()
+shap_values = SHAP(values=values.values,
+   feature_names=values.columns, data=data.values)
+
+# COMMAND ----------
+
 class SHAP():
     def __init__(self, values, feature_names, data):
         self.values = values
@@ -35,7 +53,6 @@ def plot_feature_importance(shap_values, max_features=10, figsize=(5,4)):
     importance = values.abs().mean().sort_values(ascending=False)\
         .head(max_features).reset_index()
     importance.columns = ["variable", "shap"]
-
     # plot
     f, a = plt.subplots(1,1, figsize=figsize)
     sns.barplot(x=importance.shap, y=importance.variable,
@@ -248,21 +265,24 @@ def plot_observation(shap_values, row, max_features=5, shap_xlim=(-.1,.1)):
 
 # COMMAND ----------
 
-# TEST CASES
-values = spark.table("churndb.retailrocket_shap_values").where(f.col("pipe")=="gbm_reg")
-values = values.select([c for c in data.columns if c not in ["pipe"]]).toPandas()
-data = spark.table("churndb.retailrocket_shap_data").where(f.col("pipe")=="gbm_reg")
-data = data.select([c for c in data.columns if c not in ["pipe"]]).toPandas()
-shap_values = SHAP(values=values.values, feature_names=values.columns, data=data.values)
+
 
 # COMMAND ----------
 
-plot_feature_importance(shap_values)    
+max_features=10
+figsize=(5,4)
+# data
+values = pd.DataFrame(shap_values.values, columns=shap_values.feature_names)
+importance = values.abs().mean().sort_values(ascending=False)\
+    .head(max_features).reset_index()
+importance.columns = ["variable", "shap"]
+# plot
+f, a = plt.subplots(1,1, figsize=figsize)
+sns.barplot(x=importance.shap, y=importance.variable,
+    color=sns.color_palette("rocket")[0], ax=a);
+a.set_ylabel("");
+a.set_xlabel("$E(|SHAP|)$");
 
 # COMMAND ----------
 
 plot_feature(shap_values, "purchase_recency_cv", bins=25, xlim=None)
-
-# COMMAND ----------
-
-
