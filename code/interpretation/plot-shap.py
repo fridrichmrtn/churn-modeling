@@ -23,29 +23,34 @@ from pyspark.sql import functions as f
 
 # COMMAND ----------
 
-# TEST CASES
-def _get_features(df):
-    out_cols = ["user_id", "row_id", "time_step", "pipe"]+\
-        [c for c in df.columns if "target_" in c]
-    return [c for c in df.columns if c not in out_cols]
-
-values = spark.table("churndb.retailrocket_shap_values")\
-    .where(f.col("pipe")=="gbm_reg").orderBy(f.col("row_id"))
-in_cols = _get_features(values)
-values = values.select(in_cols).toPandas()
-data = spark.table("churndb.retailrocket_shap_data")\
-   .where(f.col("pipe")=="gbm_reg").orderBy(f.col("row_id"))
-data = data.select(in_cols).toPandas()
-shap_values = SHAP(values=values.values,
-   feature_names=values.columns, data=data.values)
-
-# COMMAND ----------
-
 class SHAP():
-    def __init__(self, values, feature_names, data):
-        self.values = values
-        self.feature_names = feature_names
-        self.data = data
+    def __init__(self, dataset_name, pipe):
+        self.dataset_name_ = dataset_name
+        self.pipe_ = pipe
+        
+    def _get_features(self, df):
+        out_cols = ["user_id", "row_id", "time_step", "pipe"]+\
+            [c for c in df.columns if "target_" in c]
+        return [c for c in df.columns if c not in out_cols] 
+    
+    def get_data(self):
+        values = spark.table(f"churndb.{self.dataset_name_}_shap_values")\
+            .where(f.col("pipe")==self.pipe_).orderBy(f.col("row_id"))
+        self.feature_names = self._get_features(values)
+        self.values = values.toPandas()\
+            .loc[:,self.feature_names].values
+        data = spark.table(f"churndb.{self.dataset_name_}_customer_model")\
+            .join(values.select("row_id").distinct(), on="row_id")\
+                .orderBy(f.col("row_id"))
+        self.data = data.toPandas()\
+            .loc[:,self.feature_names].values
+        return self
+    
+    def save_data(self, path=None):
+        if path is None:
+            path = f"/dbfs/mnt/{self.dataset_name_}/pipelines/shap_{self.pipe_}"
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
         
 def plot_feature_importance(shap_values, max_features=10, figsize=(5,4)):
     # data
@@ -165,7 +170,7 @@ def plot_clusters(shap_values, cluster_labels, max_features=5, figsize=(7.5,4.5)
     for cluster in range(n_clusters):
         sns.histplot(x=shap_total[cluster_labels==cluster],
             ax=la[cluster], binwidth=(np.max(shap_total)-np.min(shap_total))/50,
-            stat="proportion", color=sns.color_palette("rocket")[0], alpha=.75)
+            stat="probability", color=sns.color_palette("rocket")[0], alpha=.75)
         la[cluster].set_ylabel("")
 
     # add axis labels
@@ -189,19 +194,25 @@ def plot_clusters(shap_values, cluster_labels, max_features=5, figsize=(7.5,4.5)
         feature_order = cluster_data.abs().sort_values(ascending=False).head(max_features)
         plot_data = pd.DataFrame(cluster_data.loc[feature_order.index], columns=["shap"]).T
         sns.heatmap(plot_data, ax=ra[cluster],
-            cbar=True, vmin=-0.11, vmax=0.11, cbar_ax=cbar_ax,
+            cbar=True, vmin=-1250, vmax=1250, cbar_ax=cbar_ax,
             yticklabels="", xticklabels="",
             annot=np.array(["\n".join(c) for c in plot_data.columns.str.split("_")])\
                 .reshape(plot_data.shape),
             annot_kws={"rotation":0}, fmt="");
     f.tight_layout();
     plt.rcParams.update(plt.rcParamsDefault);
-    
-def get_cluster_centers(df):
-    min_row = pairwise_distances_argmin(df.values,
-        df.mean().values.reshape(1,-1),
-        axis=0)
-    return df.iloc[min_row,:].index.values[0]
+                                                                                     
+def get_cluster_centers(shap_values):
+    def _get_center(df):
+        min_row = pairwise_distances_argmin(df.values,
+            df.mean().values.reshape(1,-1), axis=0)
+        return df.iloc[min_row,:].index.values[0]
+    centers = pd.DataFrame(shap_values.values,
+        columns=shap_values.feature_names)\
+            .groupby(cluster_labels, as_index=False)\
+                .apply(_get_center).reset_index()
+    centers.columns = ["cluster_label", "idx"]
+    return centers
 
 def plot_observation(shap_values, row, max_features=5, shap_xlim=(-.1,.1)):
 
@@ -265,24 +276,9 @@ def plot_observation(shap_values, row, max_features=5, shap_xlim=(-.1,.1)):
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
-max_features=10
-figsize=(5,4)
-# data
-values = pd.DataFrame(shap_values.values, columns=shap_values.feature_names)
-importance = values.abs().mean().sort_values(ascending=False)\
-    .head(max_features).reset_index()
-importance.columns = ["variable", "shap"]
-# plot
-f, a = plt.subplots(1,1, figsize=figsize)
-sns.barplot(x=importance.shap, y=importance.variable,
-    color=sns.color_palette("rocket")[0], ax=a);
-a.set_ylabel("");
-a.set_xlabel("$E(|SHAP|)$");
-
-# COMMAND ----------
-
-plot_feature(shap_values, "purchase_recency_cv", bins=25, xlim=None)
+shap_list = [("retailrocket", "svm_rbf_class"), ("retailrocket", "gbm_reg"),
+    ("rees46", "rf_class"), ("rees46", "gbm_reg")]
+for dataset_name, pipe in shap_list:
+    shap_values = SHAP(dataset_name, pipe)
+    shap_values = shap_values.get_data()
+    shap_values.save_data()
