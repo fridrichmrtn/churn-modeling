@@ -170,8 +170,8 @@ def plot_cumulative_curves(sp, remove_legend=True):
     sns.lineplot(#data=sp,
         x=sp.percentile, y=sp.cumulative_actual_profit, legend=False,
         color=sns.color_palette("rocket")[3], ax=a);
-    a.set_ylim(-110000,30000)
-    #a.set_ylim(-200000,210000)
+    #a.set_ylim(-110000,30000)
+    a.set_ylim(-200000,210000)
     a.set_ylabel("profit");
     a.set_xlabel("percentile");
     a.legend(loc="lower right",
@@ -277,12 +277,27 @@ plot_bias_variance(evaluation, metrics=metrics)
 
 # COMMAND ----------
 
-df = get_cumulative_data("rees46", "rf_class")
+def plot_cumulative_curves(sp, remove_legend=True):    
+    f, a = plt.subplots(1,1, figsize=(7,7))
+    percentiles = (sp.percentile*100).astype("int").values
+    sns.lineplot(#data=sp,
+        x=percentiles, y=sp.cumulative_expected_profit, legend=False,
+        color=sns.color_palette("rocket")[0], ax=a);
+    sns.lineplot(#data=sp,
+        x=percentiles, y=sp.cumulative_actual_profit, legend=False,
+        color=sns.color_palette("rocket")[3], ax=a);
+    a.set_ylim(-110000,30000)
+    #a.set_ylim(-210000,210000)
+    a.set_ylabel("profit");
+    a.set_xlabel("percentile");
+    a.legend(loc="lower right",
+        labels=["expected profit", "actual profit"]);
+    a.axhline(0, linestyle="dotted", c="k");
+    if remove_legend:
+        a.get_legend().remove();    
+    return None
 
 # COMMAND ----------
 
+df = get_cumulative_data("rees46", "gbm_class")
 plot_cumulative_curves(df, True)
-
-# COMMAND ----------
-
-
