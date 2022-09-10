@@ -75,21 +75,16 @@ def glue_shap(dataset_name, time_step, pipe):
     shap_values.withColumn("pipe", f.lit(pipe))\
       .write.saveAsTable(f"churndb.{dataset_name}_shap_values",
              mode="append")
-    shap_data["test"].withColumn("pipe", f.lit(pipe))\
-      .write.saveAsTable(f"churndb.{dataset_name}_shap_data",
-             mode="append")
     return None
 
 # COMMAND ----------
 
 # spark.sql("DROP TABLE IF EXISTS churndb.retailrocket_shap_values;")
-# spark.sql("DROP TABLE IF EXISTS churndb.retailrocket_shap_data;")
 # glue_shap("retailrocket", 0, "svm_rbf_class")
 # glue_shap("retailrocket", 0, "gbm_reg")
 
 # COMMAND ----------
 
 spark.sql("DROP TABLE IF EXISTS churndb.rees46_shap_values;")
-spark.sql("DROP TABLE IF EXISTS churndb.rees46_shap_data;")
 glue_shap("rees46", 0, "rf_class")
 glue_shap("rees46", 0, "gbm_reg")
