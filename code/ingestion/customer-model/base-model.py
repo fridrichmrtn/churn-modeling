@@ -25,7 +25,7 @@ def _add_lags(df, colnames, lags=[0,1,2,3], ma=3):
         # possibly add diff, and a few other interactions
     return df
 
-def _get_user_months(sessions):
+def _get_user_month(sessions):
     users = sessions.select("user_id").distinct()
     time = sessions.agg(f.max(f.col("start").alias("maxt")),
         f.min(f.col("start").alias("mint"))).collect()[0]
@@ -127,10 +127,10 @@ def get_base_model(events, week_target):
     import pyspark.sql.functions as f
     from pyspark.sql.window import Window
     sessions = _get_sessions(events)
-    user_months = _get_user_months(sessions)
-    sessions = sessions.join(user_months, on=["user_id"])\
+    user_month = _get_user_month(sessions)
+    sessions = sessions.join(user_month, on=["user_id"])\
         .where((f.col("start")>=f.col("start_time"))&(f.col("start")<f.col("end_time")))\
-            .drop(["start_time", "end_time"])
+            .drop(*["start_time", "end_time"])
     
     # statistics
     excl_cols = set(["user_session_id", "user_id", "start", "end",
