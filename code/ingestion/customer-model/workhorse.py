@@ -109,7 +109,7 @@ def construct_customer_model(dataset_name, time_steps=3,
     data_path = f"dbfs:/mnt/{dataset_name}/delta/"
     
     # WEEK STEPS
-    events = spark.read.format("delta").load(data_path+"events")
+    events = spark.read.format("delta").load(data_path+"events").repartition(16)
     max_date = events.agg(f.to_date(f.next_day(f.max("event_time"),"Sun")
         -f.expr("INTERVAL 7 DAYS")).alias("mdt")).collect()[0]["mdt"]
     for time_step in range(time_steps):
