@@ -16,7 +16,7 @@
 ##
 ### RETAIL ROCKET
 
-# dataset_name = "retailrocket"
+dataset_name = "retailrocket"
 
 # LOAD TRANSFORM
 #events = construct_events(dataset_name)
