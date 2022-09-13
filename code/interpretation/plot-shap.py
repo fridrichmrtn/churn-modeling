@@ -29,7 +29,7 @@ class SHAP():
         self.pipe_ = pipe
         
     def _get_features(self, df):
-        out_cols = ["user_id", "row_id", "time_step", "pipe"]+\
+        out_cols = ["user_id", "row_id", "time_step", "pipe", "base_values"]+\
             [c for c in df.columns if "target_" in c]
         return [c for c in df.columns if c not in out_cols] 
     
@@ -39,11 +39,12 @@ class SHAP():
         self.feature_names = self._get_features(values)
         self.values = values.toPandas()\
             .loc[:,self.feature_names].values
-        data = spark.table(f"churndb.{self.dataset_name_}_customer_model")\
+        self.base_values = values.toPandas()\
+            .loc[:,"base_values"].values
+        self.data = spark.table(f"churndb.{self.dataset_name_}_customer_model")\
             .join(values.select("row_id").distinct(), on="row_id")\
-                .orderBy(f.col("row_id"))
-        self.data = data.toPandas()\
-            .loc[:,self.feature_names].values
+                .orderBy(f.col("row_id")).toPandas()\
+                    .loc[:,self.feature_names].values
         return self
     
     def save_data(self, path=None):
@@ -277,7 +278,7 @@ def plot_observation(shap_values, row, max_features=5, shap_xlim=(-.1,.1)):
 # COMMAND ----------
 
 shap_list = [("retailrocket", "svm_rbf_class"), ("retailrocket", "gbm_reg"),
-    ("rees46", "rf_class"), ("rees46", "gbm_reg")]
+    ("rees46", "gbm_class"), ("rees46", "gbm_reg")]
 for dataset_name, pipe in shap_list:
     shap_values = SHAP(dataset_name, pipe)
     shap_values = shap_values.get_data()
