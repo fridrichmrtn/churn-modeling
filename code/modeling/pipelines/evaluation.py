@@ -9,7 +9,7 @@ import pyspark.sql.functions as f
 from sklearn.metrics import (accuracy_score,
     precision_score,recall_score, f1_score, roc_auc_score,
     r2_score, mean_absolute_error, mean_squared_error)
-from scipy.stats import t, sem, ttest_rel
+from scipy.stats import t, sem, wilcoxon
 
 # COMMAND ----------
 
@@ -199,9 +199,10 @@ def get_ci(df):
     return df
 
 def _tt(df, a="value_x", b="value_y"):    
-    tstat, pval = ttest_rel(df[a], df[b])
+    stat, pval = wilcoxon(df[a], df[b], zero_method="zsplit")
+    # possibly add alternative
     diff = np.mean(df[a]-df[b])
-    return (diff, tstat, pval)
+    return (diff, stat, pval)
 
 def get_tt(df):
     df = df.merge(df, on=["set_type", "time_step", "metric"])\
@@ -239,29 +240,29 @@ def plot_bias_variance(df, metrics, figsize=(16,5)):
 
 # COMMAND ----------
 
-dataset_name = "retailrocket"
-evaluation = spark.table(f"churndb.{dataset_name}_evaluation").toPandas()
-evaluation = evaluation.loc[(evaluation.metric=="r2_score") & (evaluation.set_type=="train") & (evaluation["pipe"]=="gbm_reg"),:]
-evaluation.sort_values("value")
+# dataset_name = "retailrocket"
+# evaluation = spark.table(f"churndb.{dataset_name}_evaluation").toPandas()
+# evaluation = evaluation.loc[(evaluation.metric=="r2_score") & (evaluation.set_type=="train") & (evaluation["pipe"]=="gbm_reg"),:]
+# evaluation.sort_values("value")
 
 # COMMAND ----------
 
 # TEST
 dataset_name = "retailrocket"
 evaluation = spark.table(f"churndb.{dataset_name}_evaluation").toPandas()
-evaluation = evaluation.loc[evaluation.time_step<4,:]
+#evaluation = evaluation.loc[evaluation.time_step<4,:]
 #display(get_ci(evaluation).fillna(0))
-#display(get_tt(evaluation))
+display(get_tt(evaluation))
 
-metrics = {"accuracy_score":{"label":"acc", "xlim":(0.8,1.01)},
-     "f1_score":{"label":"f1", "xlim":(0.8,1.01)},
-     "roc_auc_score":{"label":"auc", "xlim":(0.8,1.01)}}
+# metrics = {"accuracy_score":{"label":"acc", "xlim":(0.8,1.01)},
+#      "f1_score":{"label":"f1", "xlim":(0.8,1.01)},
+#      "roc_auc_score":{"label":"auc", "xlim":(0.8,1.01)}}
 
 # metrics = {"r2_score":{"label":"r2", "xlim":(-0.01,1.01)},
 #      "mean_absolute_error":{"label":"mae", "xlim":(None,None)},
 #      "mean_squared_error":{"label":"mse", "xlim":(None,None)}}   
 
-plot_bias_variance(evaluation, metrics=metrics)  
+# plot_bias_variance(evaluation, metrics=metrics)  
 
 # COMMAND ----------
 
