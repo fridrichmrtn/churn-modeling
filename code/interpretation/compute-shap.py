@@ -83,7 +83,7 @@ def glue_shap(dataset_name, time_step, pipe):
 # COMMAND ----------
 
 # spark.sql("DROP TABLE IF EXISTS churndb.retailrocket_shap_values;")
-# glue_shap("retailrocket", 0, "svm_rbf_class")
+# glue_shap("retailrocket", 0, "gbm_class")
 # glue_shap("retailrocket", 0, "gbm_reg")
 
 # COMMAND ----------

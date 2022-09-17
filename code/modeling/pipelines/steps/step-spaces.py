@@ -38,7 +38,7 @@ scaling = {
 sampling = {
     "regression":
            ["passthrough"],
-     "classification":
+    "classification":
            [RandomOverSampler(), RandomUnderSampler(), "passthrough"]}
 
 preprocessing = {
@@ -52,8 +52,8 @@ preprocessing = {
                 ("data_sampler", "passthrough")],
             "space":
                 {"data_scaler":hp.choice("data_scaler", scaling[task]),
-                "variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-5, 10**-1),
-                "feature_selector__n_features":hp.randint("feature_selector__n_features", 5, 100),
+                "variance_filter__threshold":hp.uniform("variance_filter__threshold", 1*10**-3, 10**-1),
+                "feature_selector__n_features":hp.randint("feature_selector__n_features", 5, 50),
                 "data_sampler":hp.choice("data_sampler", sampling[task])
                 }},
         "tree":
@@ -64,7 +64,7 @@ preprocessing = {
                   ("data_sampler", "passthrough")],
              "space":
                  {"data_scaler":hp.choice("data_scaler", scaling[task]),
-                 "variance_filter__threshold":hp.uniform("variance_filter__threshold", 10**-5, 10**-1),
+                 "variance_filter__threshold":hp.uniform("variance_filter__threshold", 1*10**-3, 10**-1),
                  "data_sampler":hp.choice("data_sampler", sampling[task])}}} for task in scaling.keys()}
 
 #
@@ -78,169 +78,169 @@ target_trans = [RobustScaler(), QuantileTransformer(), PowerTransformer()]
 ### MODELS AND SPACES
 
 models = {
-#    "lr":
-#           {"model":{
-#               "classification":
-#                   [("lr", LogisticRegression(solver="saga",
-#                       penalty="elasticnet", max_iter=2500))],
-#               "regression":
-#                   [("lr", TransformedTargetRegressor(regressor=ElasticNetC(max_iter=2500),
-#                       transformer=PowerTransformer()))]},          
-#            "space":
-#                {"classification":
-#                    {"lr__C":hp.uniform("lr__C",10**-2,10**1),
-#                    "lr__l1_ratio":hp.uniform("lr__l1_ratio",0,1)},
-#                 "regression":
-#                    {"lr__regressor__C":hp.uniform("lr__regression__C",10**-2,10**1),
-#                    "lr__regressor__l1_ratio":hp.uniform("lr__regression__l1_ratio",0,1),
-#                    "lr__transformer":hp.choice("lr__transformer",target_trans)}},
-#            "preprocessing":"smooth"},
-    
-#     "svm_lin":{
-#             "model":{
-#               "classification":
-#                   [("svm_lin", LinearSVC(dual=False))],
-#               "regression":
-#                   [("svm_lin", TransformedTargetRegressor(
-#                           regressor=LinearSVR(loss="squared_epsilon_insensitive", dual=False),
-#                       transformer=PowerTransformer()))]},
-#            "space":
-#                {"classification":
-#                    {"svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1)},
-#                "regression":
-#                    {"svm_lin__regressor__C":hp.uniform("svm_lin__regressor__C",10**-2,10**1),
-#                    "svm_lin__transformer":hp.choice("svm_lin__transformer",target_trans)}},
-#            "preprocessing":"smooth"},
-    
-#     "svm_rbf":{
-#             "model":{
-#               "classification":
-#                   [("rbf", Nystroem()), ("svm_lin", LinearSVC(dual=False))],
-#               "regression":
-#                   [("rbf", Nystroem()), ("svm_lin", TransformedTargetRegressor(
-#                           regressor=LinearSVR(loss="squared_epsilon_insensitive", dual=False),
-#                       transformer=PowerTransformer()))]},
-#            "space":
-#                {"classification":
-#                    {"rbf__n_components":hp.randint("rbf__n_components",20,100),
-#                    "svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**2)},
-#                 "regression":
-#                    {"rbf__n_components":hp.randint("rbf__n_components",20,100),
-#                    "svm_lin__regressor__C":hp.uniform("svm_lin__C",10**-2,10**2),
-#                    "svm_lin__transformer":hp.choice("svm_lin__transformer",target_trans)}},                
-#            "preprocessing":"smooth"},
-    
-    "mlp":{
-           "model":{
+   "lr":
+          {"model":{
               "classification":
-                  [("mlp", MLPClassifier())],
+                  [("lr", LogisticRegression(solver="saga",
+                      penalty="elasticnet", max_iter=2500))],
               "regression":
-                  [("mlp", TransformedTargetRegressor(regressor=MLPRegressor(),
+                  [("lr", TransformedTargetRegressor(regressor=ElasticNetC(max_iter=2500),
+                      transformer=PowerTransformer()))]},          
+           "space":
+               {"classification":
+                   {"lr__C":hp.uniform("lr__C",10**-2,10**1),
+                   "lr__l1_ratio":hp.uniform("lr__l1_ratio",0,1)},
+                "regression":
+                   {"lr__regressor__C":hp.uniform("lr__regression__C",10**-2,10**1),
+                   "lr__regressor__l1_ratio":hp.uniform("lr__regression__l1_ratio",0,1),
+                   "lr__transformer":hp.choice("lr__transformer",target_trans)}},
+           "preprocessing":"smooth"},
+    
+    "svm_lin":{
+            "model":{
+              "classification":
+                  [("svm_lin", LinearSVC(dual=False))],
+              "regression":
+                  [("svm_lin", TransformedTargetRegressor(
+                          regressor=LinearSVR(loss="squared_epsilon_insensitive", dual=False),
                       transformer=PowerTransformer()))]},
            "space":
                {"classification":
-                   {"mlp__batch_size":hp.randint("mlp__batch_size",2**3,2**6),
-                    "mlp__epochs":hp.randint("mlp__epochs",5*10, 5*10**2),
-                    "mlp__layers":hp.randint("mlp__layers",1,5),
-                    "mlp__units":hp.randint("mlp__units",2**2,2**7),
-                    "mlp__activation":hp.choice("mlp__activation", ["elu", LeakyReLU()]),
-                    "mlp__optimizer__learning_rate":hp.uniform("mlp__optimizer__learning_rate", 10**-5,10**-1),
-                    "mlp__optimizer":hp.choice("mlp__optimizer",["sgd", "adam", "rmsprop"])},
-                "regression":
-                   {"mlp__regressor__batch_size":hp.randint("mlp__regressor__batch_size",2**3,2**6),
-                    "mlp__regressor__epochs":hp.randint("mlp__regressor__epochs",5*10, 5*10**2),
-                    "mlp__regressor__layers":hp.randint("mlp__regressor__layers",1,5),
-                    "mlp__regressor__units":hp.randint("mlp__regressor__units",2**2,2**7),
-                    "mlp__regressor__activation":hp.choice("mlp__regressor__activation", ["elu", LeakyReLU()]),
-                    "mlp__regressor__optimizer__learning_rate":hp.uniform("mlp__regressor__optimizer__learning_rate", 10**-5,10**-1),
-                    "mlp__regressor__optimizer":hp.choice("mlp__regressor__optimizer",["sgd", "adam", "rmsprop"]),
-                    "mlp__transformer":hp.choice("mlp__transformer",target_trans)}},
+                   {"svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1)},
+               "regression":
+                   {"svm_lin__regressor__C":hp.uniform("svm_lin__regressor__C",10**-2,10**1),
+                   "svm_lin__transformer":hp.choice("svm_lin__transformer",target_trans)}},
            "preprocessing":"smooth"},
     
-#     "dt":{
-#            "model":{
-#                "classification":
-#                    [("dt", DecisionTreeClassifier())],
-#                "regression":
-#                    [("dt", TransformedTargetRegressor(regressor=DecisionTreeRegressor(),
-#                        transformer=PowerTransformer()))]},
-#            "space":
-#                {"classification":
-#                    {"dt__max_depth":hp.randint("dt__max_depth",2,30),
-#                     "dt__min_samples_split":hp.randint("dt__min_samples_split",10**1,2*10**2),
-#                     "dt__min_samples_leaf":hp.randint("dt__min_samples_leaf",2,100),
-#                     "dt__min_impurity_decrease":hp.uniform("dt__min_impurity_decrease",0,.1),
-#                     "dt__min_weight_fraction_leaf":hp.uniform("dt__min_weight_fraction_leaf",0,.1)},
-#                 "regression":
-#                    {"dt__regressor__max_depth":hp.randint("dt__regressor__max_depth",2,30),
-#                     "dt__regressor__min_samples_split":hp.randint("dt__regressor__min_samples_split",10**1,2*10**2),
-#                     "dt__regressor__min_samples_leaf":hp.randint("dt__regressor__min_samples_leaf",2,100),
-#                     "dt__regressor__min_impurity_decrease":hp.uniform("dt__regressor__min_impurity_decrease",0,.1),
-#                     "dt__regressor__min_weight_fraction_leaf":hp.uniform("dt__regressor__min_weight_fraction_leaf",0,.1),
-#                     "dt__transformer":hp.choice("dt__transformer",target_trans)}},
-#            "preprocessing":"tree"},
+    "svm_rbf":{
+            "model":{
+              "classification":
+                  [("rbf", Nystroem()), ("svm_lin", LinearSVC(dual=False))],
+              "regression":
+                  [("rbf", Nystroem()), ("svm_lin", TransformedTargetRegressor(
+                          regressor=LinearSVR(loss="squared_epsilon_insensitive", dual=False),
+                      transformer=PowerTransformer()))]},
+           "space":
+               {"classification":
+                   {"rbf__n_components":hp.randint("rbf__n_components",10,100),
+                   "svm_lin__C":hp.uniform("svm_lin__C",10**-2,10**1)},
+                "regression":
+                   {"rbf__n_components":hp.randint("rbf__n_components",10,100),
+                   "svm_lin__regressor__C":hp.uniform("svm_lin__C",10**-2,10**1),
+                   "svm_lin__transformer":hp.choice("svm_lin__transformer",target_trans)}},                
+           "preprocessing":"smooth"},
     
-#     "rf":{
+#     "mlp":{
 #            "model":{
-#                "classification":
-#                    [("rf", RandomForestClassifier(n_jobs=-1))],
-#                "regression":
-#                    [("rf", TransformedTargetRegressor(regressor=RandomForestRegressor(n_jobs=-1),
-#                        transformer=PowerTransformer()))]},
-#            "space":
-#                {"classification":
-#                    {"rf__n_estimators":hp.randint("rf__n_estimators",50,1000),
-#                    "rf__max_features":hp.uniform("rf__max_features",0.2,.8),
-#                    "rf__max_samples":hp.uniform("rf__max_samples",0.2,.8),
-#                    "rf__max_depth":hp.randint("rf__max_depth",2,30),
-#                    "rf__min_samples_split":hp.randint("rf__min_samples_split",10**1,2*10**2),
-#                    "rf__min_samples_leaf":hp.randint("rf__min_samples_leaf",2,100),
-#                    "rf__min_impurity_decrease":hp.uniform("rf__min_impurity_decrease",0,.1),
-#                    "rf__min_weight_fraction_leaf":hp.uniform("rf__min_weight_fraction_leaf",0,.1)},
-#                "regression":
-#                    {"rf__regressor__n_estimators":hp.randint("rf__regressor__n_estimators",50,1000),
-#                    "rf__regressor__max_features":hp.uniform("rf__regressor__max_features",0.2,.8),
-#                    "rf__regressor__max_samples":hp.uniform("rf__regressor__max_samples",0.2,.8),
-#                    "rf__regressor__max_depth":hp.randint("rf__regressor__max_depth",2,30),
-#                    "rf__regressor__min_samples_split":hp.randint("rf__regressor__min_samples_split",10**1,2*10**2),
-#                    "rf__regressor__min_samples_leaf":hp.randint("rf__regressor__min_samples_leaf",2,100),
-#                    "rf__regressor__min_impurity_decrease":hp.uniform("rf__regressor__min_impurity_decrease",0,.1),
-#                    "rf__regressor__min_weight_fraction_leaf":hp.uniform("rf__regressor__min_weight_fraction_leaf",0,.1),
-#                    "rf__transformer":hp.choice("rf__transformer",target_trans)}},
-#            "preprocessing":"tree"},
-    
-#    "gbm":{
-#           "model":{
 #               "classification":
-#                   [("gbm", LGBMClassifier(n_jobs=-1))],
+#                   [("mlp", MLPClassifier())],
 #               "regression":
-#                   [("gbm", TransformedTargetRegressor(regressor=LGBMRegressor(n_jobs=-1),
+#                   [("mlp", TransformedTargetRegressor(regressor=MLPRegressor(),
 #                       transformer=PowerTransformer()))]},
-#           "space":
-#               {"classification":
-#                   {"gbm__learning_rate":hp.uniform("gbm__learning_rate",0.005,.2),
-#                   "gbm__n_estimators":hp.randint("gbm__n_estimators",50,1000),
-#                   "gbm__num_leaves":hp.randint("gbm__num_leaves",5**2,5**4),
-#                   "gbm__max_depth":hp.randint("gbm__max_depth",2,30),
-#                   "gbm__min_child_samples":hp.randint("gbm__min_child_samples",2,100),
-#                   "gbm__subsample_freq":hp.randint("gbm__subsample_freq",1,5),
-#                   "gbm__subsample":hp.uniform("gbm__subsample",0.2,0.8),
-#                   "gbm__colsample_bytree":hp.uniform("gbm__colsample_bytree",0.2,0.8),
-#                   "gbm__reg_alpha":hp.uniform("gbm__reg_alpha",10**-2,10**2), 
-#                   "gbm__reg_lambda":hp.uniform("gbm__reg_lambda",10**-2,10**2)},
-#                "regression":
-#                    {"gbm__regressor__learning_rate":hp.uniform("gbm__regressor__learning_rate",0.005,.2),
-#                    "gbm__regressor__n_estimators":hp.randint("gbm__regressor__n_estimators",50,1000),
-#                    "gbm__regressor__num_leaves":hp.randint("gbm__regressor__num_leaves",5**2,5**4),
-#                    "gbm__regressor__max_depth":hp.randint("gbm__regressor__max_depth",2,30),
-#                    "gbm__regressor__min_child_samples":hp.randint("gbm__regressor__min_child_samples",2,100),
-#                    "gbm__regressor__subsample_freq":hp.randint("gbm__regressor__subsample_freq",1,5),
-#                    "gbm__regressor__subsample":hp.uniform("gbm__regressor__subsample",0.2,0.8),
-#                    "gbm__regressor__colsample_bytree":hp.uniform("gbm__regressor__colsample_bytree",0.2,0.8),
-#                    "gbm__regressor__reg_alpha":hp.uniform("gbm__regressor__reg_alpha",10**-2,10**2),
-#                    "gbm__regressor__reg_lambda":hp.uniform("gbm__regressor__reg_lambda",10**-2,10**2),
-#                    "gbm__transformer":hp.choice("gbm__transformer",target_trans)}},
-#            "preprocessing":"tree"}
+#            "space":
+#                {"classification":
+#                    {"mlp__batch_size":hp.randint("mlp__batch_size",2**2,2**4),
+#                     "mlp__epochs":hp.randint("mlp__epochs",5*10, 5*10**2),
+#                     "mlp__layers":hp.randint("mlp__layers",1,5),
+#                     "mlp__units":hp.randint("mlp__units",2**3,2**6),
+#                     "mlp__activation":hp.choice("mlp__activation", ["elu", LeakyReLU()]),
+#                     "mlp__optimizer__learning_rate":hp.uniform("mlp__optimizer__learning_rate", 10**-5,10**-2),
+#                     "mlp__optimizer":hp.choice("mlp__optimizer",["sgd", "adam", "rmsprop"])},
+#                 "regression":
+#                    {"mlp__regressor__batch_size":hp.randint("mlp__regressor__batch_size",2**2,2**4),
+#                     "mlp__regressor__epochs":hp.randint("mlp__regressor__epochs",5*10, 5*10**2),
+#                     "mlp__regressor__layers":hp.randint("mlp__regressor__layers",1,5),
+#                     "mlp__regressor__units":hp.randint("mlp__regressor__units",2**3,2**6),
+#                     "mlp__regressor__activation":hp.choice("mlp__regressor__activation", ["elu", LeakyReLU()]),
+#                     "mlp__regressor__optimizer__learning_rate":hp.uniform("mlp__regressor__optimizer__learning_rate", 10**-5,10**-2),
+#                     "mlp__regressor__optimizer":hp.choice("mlp__regressor__optimizer",["sgd", "adam", "rmsprop"]),
+#                     "mlp__transformer":hp.choice("mlp__transformer",target_trans)}},
+#            "preprocessing":"smooth"},
+    
+    "dt":{
+           "model":{
+               "classification":
+                   [("dt", DecisionTreeClassifier())],
+               "regression":
+                   [("dt", TransformedTargetRegressor(regressor=DecisionTreeRegressor(),
+                       transformer=PowerTransformer()))]},
+           "space":
+               {"classification":
+                   {"dt__max_depth":hp.randint("dt__max_depth",2,25),
+                    "dt__min_samples_split":hp.randint("dt__min_samples_split",10,50),
+                    "dt__min_samples_leaf":hp.randint("dt__min_samples_leaf",2,50),
+                    "dt__min_impurity_decrease":hp.uniform("dt__min_impurity_decrease",0.05,.1),
+                    "dt__min_weight_fraction_leaf":hp.uniform("dt__min_weight_fraction_leaf",0,.1)},
+                "regression":
+                   {"dt__regressor__max_depth":hp.randint("dt__regressor__max_depth",2,25),
+                    "dt__regressor__min_samples_split":hp.randint("dt__regressor__min_samples_split",10,50),
+                    "dt__regressor__min_samples_leaf":hp.randint("dt__regressor__min_samples_leaf",2,50),
+                    "dt__regressor__min_impurity_decrease":hp.uniform("dt__regressor__min_impurity_decrease",0.05,.1),
+                    "dt__regressor__min_weight_fraction_leaf":hp.uniform("dt__regressor__min_weight_fraction_leaf",0,.1),
+                    "dt__transformer":hp.choice("dt__transformer",target_trans)}},
+           "preprocessing":"tree"},
+    
+    "rf":{
+           "model":{
+               "classification":
+                   [("rf", RandomForestClassifier(n_jobs=-1))],
+               "regression":
+                   [("rf", TransformedTargetRegressor(regressor=RandomForestRegressor(n_jobs=-1),
+                       transformer=PowerTransformer()))]},
+           "space":
+               {"classification":
+                   {"rf__n_estimators":hp.randint("rf__n_estimators",100,750),
+                   "rf__max_features":hp.uniform("rf__max_features",0.2,0.6),
+                   "rf__max_samples":hp.uniform("rf__max_samples",0.2,0.6),
+                   "rf__max_depth":hp.randint("rf__max_depth",5,25),
+                   "rf__min_samples_split":hp.randint("rf__min_samples_split",10,50),
+                   "rf__min_samples_leaf":hp.randint("rf__min_samples_leaf",2,50),
+                   "rf__min_impurity_decrease":hp.uniform("rf__min_impurity_decrease",0.05,.1),
+                   "rf__min_weight_fraction_leaf":hp.uniform("rf__min_weight_fraction_leaf",0,.1)},
+               "regression":
+                   {"rf__regressor__n_estimators":hp.randint("rf__regressor__n_estimators",100,750),
+                   "rf__regressor__max_features":hp.uniform("rf__regressor__max_features",0.2,0.6),
+                   "rf__regressor__max_samples":hp.uniform("rf__regressor__max_samples",0.2,0.6),
+                   "rf__regressor__max_depth":hp.randint("rf__regressor__max_depth",2,25),
+                   "rf__regressor__min_samples_split":hp.randint("rf__regressor__min_samples_split",10,50),
+                   "rf__regressor__min_samples_leaf":hp.randint("rf__regressor__min_samples_leaf",2,50),
+                   "rf__regressor__min_impurity_decrease":hp.uniform("rf__regressor__min_impurity_decrease",0.05,.1),
+                   "rf__regressor__min_weight_fraction_leaf":hp.uniform("rf__regressor__min_weight_fraction_leaf",0,.1),
+                   "rf__transformer":hp.choice("rf__transformer",target_trans)}},
+           "preprocessing":"tree"},
+    
+   "gbm":{
+          "model":{
+              "classification":
+                  [("gbm", LGBMClassifier(n_jobs=-1))],
+              "regression":
+                  [("gbm", TransformedTargetRegressor(regressor=LGBMRegressor(n_jobs=-1),
+                      transformer=PowerTransformer()))]},
+          "space":
+              {"classification":
+                  {"gbm__learning_rate":hp.uniform("gbm__learning_rate",0.01,.15),
+                  "gbm__n_estimators":hp.randint("gbm__n_estimators",100,750),
+                  "gbm__num_leaves":hp.randint("gbm__num_leaves",3*10**2,5**4),
+                  "gbm__max_depth":hp.randint("gbm__max_depth",5,25),
+                  "gbm__min_child_samples":hp.randint("gbm__min_child_samples",5,50),
+                  "gbm__subsample_freq":hp.randint("gbm__subsample_freq",1,5),
+                  "gbm__subsample":hp.uniform("gbm__subsample",0.2,0.6),
+                  "gbm__colsample_bytree":hp.uniform("gbm__colsample_bytree",0.2,0.6),
+                  "gbm__reg_alpha":hp.uniform("gbm__reg_alpha",10**-2,10**1), 
+                  "gbm__reg_lambda":hp.uniform("gbm__reg_lambda",10**-2,10**2)},
+               "regression":
+                   {"gbm__regressor__learning_rate":hp.uniform("gbm__regressor__learning_rate",0.01,.15),
+                   "gbm__regressor__n_estimators":hp.randint("gbm__regressor__n_estimators",100,750),
+                   "gbm__regressor__num_leaves":hp.randint("gbm__regressor__num_leaves",3*10**2,5**4),
+                   "gbm__regressor__max_depth":hp.randint("gbm__regressor__max_depth",5,25),
+                   "gbm__regressor__min_child_samples":hp.randint("gbm__regressor__min_child_samples",5,50),
+                   "gbm__regressor__subsample_freq":hp.randint("gbm__regressor__subsample_freq",1,5),
+                   "gbm__regressor__subsample":hp.uniform("gbm__regressor__subsample",0.2,0.6),
+                   "gbm__regressor__colsample_bytree":hp.uniform("gbm__regressor__colsample_bytree",0.2,0.6),
+                   "gbm__regressor__reg_alpha":hp.uniform("gbm__regressor__reg_alpha",10**-2,10**1),
+                   "gbm__regressor__reg_lambda":hp.uniform("gbm__regressor__reg_lambda",10**-2,10**2),
+                   "gbm__transformer":hp.choice("gbm__transformer",target_trans)}},
+           "preprocessing":"tree"}
 }
     
 calibration = {

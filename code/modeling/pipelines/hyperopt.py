@@ -15,7 +15,7 @@ from sklearn.metrics import (accuracy_score, precision_score,
     mean_absolute_error, mean_squared_error)
     
 hyperopt_config = {
-    "max_evals":15,
+    "max_evals":25,
     "trials":SparkTrials,
     "algo":tpe.suggest,
     "seed":20220602}
@@ -60,10 +60,13 @@ def _get_class_perf(model, X, y):
             results[n] = np.nan
             if hasattr(model, "predict_proba"):
                 predict_proba = model.predict_proba(X)[:,1]
-                results[n]=f(y, predict_proba)
+            else:
+                predict_proba = model.decision_function(X)
+            results[n]=f(y, predict_proba)
+                
         else:
             results[n] = f(y, predicted)
-    results["loss"] = results["f1_score"]
+    results["loss"] = -results["f1_score"]
     return results
 
 def _get_reg_perf(model, X, y):
@@ -71,7 +74,7 @@ def _get_reg_perf(model, X, y):
             [r2_score, mean_absolute_error, mean_squared_error]}
     predicted = model.predict(X)
     results = {n:f(y, predicted) for n,f in metrics.items()}
-    results["loss"] = results["r2_score"]
+    results["loss"] = -results["r2_score"]
     return results
 
 def _get_performance(task, model, X, y):
@@ -86,7 +89,7 @@ def _evaluate_hyperopt(params, task, model, X, y, seed):
     model.fit(data_dict["train"]["X"], data_dict["train"]["y"])
     metrics = {n+"_"+m:v for n, data in data_dict.items()
         for m,v in _get_performance(task, model, data["X"], data["y"]).items()}
-    return {"loss": -metrics["test_loss"], "status":STATUS_OK}  
+    return {"loss": metrics["test_loss"], "status":STATUS_OK}  
 
 def optimize_pipeline(data, pipe, force=True):
     X, y = get_Xy(data, pipe)
@@ -103,7 +106,7 @@ def optimize_pipeline(data, pipe, force=True):
                     X=X, y=y, task=pipe["task"], model=pipe["steps"],
                         seed=hyperopt_config["seed"]),
                 space=pipe["space"], max_evals=hyperopt_config["max_evals"], 
-                    trials=hyperopt_config["trials"](parallelism=3),
+                    trials=hyperopt_config["trials"](parallelism=5),
                         algo=hyperopt_config["algo"])
     pipe["steps"] = clone(pipe["steps"]).set_params(
         **space_eval(pipe["space"], space_optimized))
