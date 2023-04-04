@@ -1,6 +1,6 @@
 # Machine Learning in Customer Churn Prediction
 
-The repository accommodates the author's research on churn models in the e-commerce environment with respect to selected economical aspects and interpretability.
+The repository accommodates the author's research on churn models in the e-commerce environment with focus on selected economical aspects and interpretability.
 
 # Structure
 ```
@@ -17,7 +17,7 @@ The repository accommodates the author's research on churn models in the e-comme
         ├── delta # customer model
         ├── pipelines # ml pipes
         ├── raw # inputs                              
-├── jupyters # illustrate key concepts   
+├── jupyters # illustrates key concepts   
 
 ```
 
