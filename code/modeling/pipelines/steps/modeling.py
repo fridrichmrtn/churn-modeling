@@ -118,7 +118,7 @@ class ElasticNetC(ElasticNet):
 ### CALIBRATION
 
 class CalibratedClassifierCV(CalibratedClassifierCV):
-    def __init__(self, base_estimator, n_jobs=3, **kwargs):
+    def __init__(self, base_estimator, n_jobs=4, **kwargs):
         super().__init__(base_estimator, **kwargs)
         self.n_jobs = n_jobs
         
@@ -138,8 +138,8 @@ class CalibratedPassthrough(BaseEstimator):
         return self.fitted.predict(X)
       
 class CalibratedRegression(BaggingRegressor):
-    def __init__(self, base_estimator, n_estimators=5,
-        max_samples=0.8, n_jobs=3, **kwargs):
+    def __init__(self, base_estimator, max_samples=0.8,
+        n_jobs=4, **kwargs):
         super().__init__(base_estimator, **kwargs)
         self.max_samples = max_samples
         self.n_jobs = n_jobs

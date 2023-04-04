@@ -181,8 +181,6 @@ def plot_cumulative_curves(sp, remove_legend=True):
         a.get_legend().remove();    
     return None
 
-
-
 # expected values & ci bounds
 def _ci(vec, alpha=0.95):
     mju = np.mean(vec)
@@ -240,41 +238,22 @@ def plot_bias_variance(df, metrics, figsize=(16,5)):
 
 # COMMAND ----------
 
+# # # TEST
 # dataset_name = "retailrocket"
 # evaluation = spark.table(f"churndb.{dataset_name}_evaluation").toPandas()
-# evaluation = evaluation.loc[(evaluation.metric=="r2_score") & (evaluation.set_type=="train") & (evaluation["pipe"]=="gbm_reg"),:]
-# evaluation.sort_values("value")
-
-# COMMAND ----------
-
-# TEST
-dataset_name = "retailrocket"
-evaluation = spark.table(f"churndb.{dataset_name}_evaluation").toPandas()
-#evaluation = evaluation.loc[evaluation.time_step<4,:]
-#display(get_ci(evaluation).fillna(0))
-display(get_tt(evaluation))
+# evaluation = evaluation.loc[evaluation.time_step<4,:]
+# display(get_ci(evaluation).fillna(0))
+# display(get_tt(evaluation))
 
 # metrics = {"accuracy_score":{"label":"acc", "xlim":(0.8,1.01)},
 #      "f1_score":{"label":"f1", "xlim":(0.8,1.01)},
 #      "roc_auc_score":{"label":"auc", "xlim":(0.8,1.01)}}
 
 # metrics = {"r2_score":{"label":"r2", "xlim":(-0.01,1.01)},
-#      "mean_absolute_error":{"label":"mae", "xlim":(None,None)},
-#      "mean_squared_error":{"label":"mse", "xlim":(None,None)}}   
+#      "mean_absolute_error":{"label":"mae", "xlim":(200,None)},
+#      "mean_squared_error":{"label":"mse", "xlim":(5*10**5,None)}}   
 
 # plot_bias_variance(evaluation, metrics=metrics)  
-
-# COMMAND ----------
-
-# metrics = {"accuracy_score":{"label":"acc", "xlim":(0.85,1.01)},
-#      "f1_score":{"label":"f1", "xlim":(0.85,1.01)},
-#      "roc_auc_score":{"label":"auc", "xlim":(0.85,1.01)}}
-
-metrics = {"r2_score":{"label":"r2", "xlim":(-0.01,1.01)},
-     "mean_absolute_error":{"label":"mae", "xlim":(350,1750)},
-     "mean_squared_error":{"label":"mse", "xlim":(10**5,5*10**6)}}   
-
-plot_bias_variance(evaluation, metrics=metrics)  
 
 # COMMAND ----------
 
@@ -287,8 +266,8 @@ def plot_cumulative_curves(sp, remove_legend=True):
     sns.lineplot(#data=sp,
         x=percentiles, y=sp.cumulative_actual_profit, legend=False,
         color=sns.color_palette("rocket")[3], ax=a);
-    a.set_ylim(-110000,30000)
-    #a.set_ylim(-210000,210000)
+    #a.set_ylim(-110000,30000)
+    a.set_ylim(-210000,210000)
     a.set_ylabel("profit");
     a.set_xlabel("percentile");
     a.legend(loc="lower right",
@@ -300,5 +279,5 @@ def plot_cumulative_curves(sp, remove_legend=True):
 
 # COMMAND ----------
 
-df = get_cumulative_data("rees46", "gbm_class")
-plot_cumulative_curves(df, True)
+# df = get_cumulative_data("retailrocket", "svm_rbf_reg")
+# plot_cumulative_curves(df, False)
